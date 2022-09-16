@@ -1,15 +1,32 @@
 #!/usr/bin/env python3
 import sys
-from typing import List, Tuple
+from typing import Callable, List, Tuple
 
 import numpy as np
 import numpy.typing as npt
 from scipy.spatial.distance import euclidean
 
+# Type Hints
 City = Tuple[int, int, int]
 
+Genome = List[int]
+Population = List[Genome]
+PopulationFunc = Callable[[], Population]
+FitnessFunc = Callable[[Genome], int]
+SelectionFunc = Callable[[Population, FitnessFunc], Tuple[Genome, Genome]]
+CrossoverFunc = Callable[[Genome, Genome], Tuple[Genome, Genome]]
+MutationFunc = Callable[[Genome], Genome]
+
+
 def read_input(input_file_path: str) -> Tuple[int, List[City]]:
-    # TODO: Read input.txt from current directory
+    """Parses the input file and returns the number of cities and a list containing the coordinates of the cities.
+
+    Args:
+        input_file_path (str): Relative or absolute path to the input file
+
+    Returns:
+        Tuple[int, List[City]]: Number of Cities and a list of city coordinates
+    """
     cities: List[City] = list()
 
     with open(input_file_path, "r") as input_file:
@@ -20,17 +37,33 @@ def read_input(input_file_path: str) -> Tuple[int, List[City]]:
     return city_count, cities
 
 
-def calculate_distances(n_cities: int, cities: City) -> npt.ArrayLike:
+def calculate_distances(n_cities: int, cities: List[City], distance_func: Callable) -> npt.NDArray[np.float64]:
+    """Calculates the disance between each city.
+
+    Args:
+        n_cities (int): Number of cities
+        cities (List[City]): List of cities
+        distance_func (Callable): The distance function to use
+
+    Returns:
+        npt.ArrayLike: a n_cities x n_cities array containing the distance between each city
+    """
     distance_matrix = np.empty([n_cities, n_cities])
     for start_city_idx in range(n_cities):
         for end_city_idx in range(n_cities):
-            distance_matrix[start_city_idx][end_city_idx] = euclidean(cities[start_city_idx], cities[end_city_idx])
+            distance_matrix[start_city_idx][end_city_idx] = distance_func(cities[start_city_idx], cities[end_city_idx])
     return distance_matrix
 
 
-def store_output(path: List[City]):
-    # TODO: Store output in given format to a output.txt file in current directory
-    pass
+def print_cities_for_path(cities: List[City], path: List[int]) -> None:
+    """Print the list of cities in the order of visit
+
+    Args:
+        cities (List[City]): List of all cities
+        path (List[int]): Path taken to visit all cities. Contains the index into the list of cities
+    """
+    for city_idx in path:
+        print(f"{cities[city_idx][0]}{cities[city_idx][1]}{cities[city_idx][2]}")
 
 
 # a. initial population
@@ -107,7 +140,7 @@ def main():
     print("cities ... ", cities)
 
     # Create distance matrix
-    distance_matrix = calculate_distances(n_cities, cities)
+    distance_matrix = calculate_distances(n_cities, cities, euclidean)
     print("distance matrix .. ", distance_matrix)
 
     pass
