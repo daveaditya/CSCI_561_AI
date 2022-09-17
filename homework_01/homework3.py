@@ -20,9 +20,10 @@ PopulationFunc = Callable[[], Population]  # A function that generates the popul
 FitnessFunc = Callable[
     [Chromosome, npt.NDArray[np.float64]], np.float64
 ]  # A function that takes a chromosome and distance matrix to give fitness score of the chromosome
-SelectionFunc = Callable[[Population, FitnessFunc], Tuple[Chromosome, Chromosome]]
+SelectionFunc = Callable[[Population, FitnessFunc], npt.NDArray]
 CrossoverFunc = Callable[[Chromosome, Chromosome], Tuple[Chromosome, Chromosome]]
 MutationFunc = Callable[[Chromosome], Chromosome]
+SurvivorFunc = Callable[[Population, FitnessFunc], npt.NDArray]
 
 
 ###########################################################################################################################
@@ -123,14 +124,14 @@ def create_initial_population(size: int, n_allele: int) -> Population:
 ###########################################################################################################################
 ### Selection Methods
 ###########################################################################################################################
-def roulette_wheel_based_selection(population: Population, fitness_func: FitnessFunc) -> Chromosome:
+def roulette_wheel_based_selection(population: Population, fitness_func: FitnessFunc) -> npt.NDArray:
     """Defines the best fit individuals and selects them for breeding. Roulette wheel-based selection.
 
     Args:
         population (Population): list of path from which the mating pool is created
 
     Returns:
-        Chromosome: a selected chromosome, ready to mate!
+        npt.NDArray: a selected chromosome, ready to mate!
     """
     fitness_scores: npt.NDArray[np.float64] = np.fromiter(map(fitness_func, population))
     population_fitness = fitness_scores.sum()
@@ -138,46 +139,93 @@ def roulette_wheel_based_selection(population: Population, fitness_func: Fitness
     # calculate the probablity for each chromosome, here we are minimizing and hence 1 - probability
     chromosome_probability = [(1 - score / population_fitness) for score in fitness_scores]
 
-    return np.random.choice(population, chromosome_probability)
+    return np.random.choice(population, chromosome_probability, k=2)
 
 
 ###########################################################################################################################
 ### Crossover Methods
 ###########################################################################################################################
-def crossover(parent_1: Chromosome, parent_2: Chromosome, start_index: int, end_index: int) -> Chromosome:
-    """two point crossover
+def ordered_crossover(parent_1: Chromosome, parent_2: Chromosome, crossover_probability: float) -> Tuple[Chromosome, Chromosome]:
+    """Ordered Crossover
 
     Args:
         parent_1 (Chromosome): list containing the random sequence of cities for the salesman to follow
         parent_2 (Chromosome): list containing the random sequence of citites for the salesman to follow
-        start_index (int): start index of the subarray to be chose from parent 1
-        end_index (int): end index of the subarray to be chosen from parent 1
 
     Returns:
-        Chromosome: child after performing crossover
+        Tuple[Chromosome, Chromosome]: child after performing crossover
     """
-    child: Chromosome = list()
+    # do mutation based on mutation probability
+    do_crossover = np.random.rand()
+    if do_crossover > crossover_probability:
+        return parent_1, parent_2
 
-    return child
+    size = parent_1.shape[0]
+    a, b = np.random.uniform((0, size), 2)
+    if a > b:
+        a, b = b, a
+
+    holes_1, holes_2 = np.full(size, True), np.full(size, True)
+    for i in range(size):
+        if i < a or i > b:
+            holes_1[parent_2[i]] = False
+            holes_2[parent_1[i]] = False
+
+    temp_1, temp_2 = parent_1.copy(), parent_2.copy()
+    k1, k2 = b + 1, b + 1
+    for i in range(size):
+        if not holes_1[temp_1[(i + b + 1) % size]]:
+            parent_1[k1 % size] = temp_1[(i + b + 1) % size]
+            k1 += 1
+        
+        if not holes_2[temp_2[(i + b + 1) % size]]:
+            parent_2[k2 % size] = parent_2[(i + b + 1) % size]
+            k2 += 1
+
+    for i in range(a, b + 1):
+        parent_1[i], parent_2[i] = parent_2[i], parent_1[i]
+
+    return parent_1, parent_2
 
 
 ###########################################################################################################################
 ### Mutation Methods
 ###########################################################################################################################
+def reverse_sequence_mutation(chromosome: Chromosome, mutation_probability: float) -> Chromosome:
+    # do mutation based on mutation probability
+    do_mutate = np.random.rand()
+    if do_mutate > mutation_probability:
+        return chromosome
 
+    size = chromosome.shape[0]
 
-# e. find and store best
+    a, b = np.random.uniform(1, size, 2)
+    if a > b:
+        a, b = b, a
+
+    # create a copy and reverse the sub-sequence
+    mutated_chromosome = chromosome.copy()
+    mutated_chromosome[a:b] = chromosome[a:b][::-1]
+
+    return mutated_chromosome
 
 
 ###########################################################################################################################
-### Execute Evolution
+### Survivor Selection Methods
 ###########################################################################################################################
-def execute_evolution(
+
+
+
+###########################################################################################################################
+### Perform Evolution
+###########################################################################################################################
+def do_evolution(
     population_func: PopulationFunc,
     fitness_func: FitnessFunc,
     selection_func: SelectionFunc,
-    crossover_func: Optional[CrossoverFunc],
-    mutation_func: Optional[MutationFunc],
+    crossover_func: CrossoverFunc,
+    mutation_func: MutationFunc,
+    survivor_func: Optional[SurvivorFunc],
     generation_limit: int,
 ) -> Tuple[Population, np.float64]:
     # Generate initial population
@@ -190,8 +238,17 @@ def execute_evolution(
         fitness_func(initial_population),
     )
 
-    print(selection_func(initial_population, fitness_func))
+    parent_1, parent_2 = selection_func(initial_population, fitness_func)
 
+    print(parent_1, parent_2)
+
+    child_1, child_2 = crossover_func(parent_1, parent_2)
+
+    print(child_1, child_2)
+
+    mutated_child_1, mutated_child_2 = mutation_func(child_1), mutation_func(child_2)
+
+    print(mutated_child_1, mutated_child_2)
 
     pass
 
@@ -214,12 +271,13 @@ def main():
     distance_matrix = calculate_distances(n_cities, cities, euclidean)
     print("distance matrix .. ", distance_matrix)
 
-    last_population, generation = execute_evolution(
+    last_population, generation = do_evolution(
         population_func=functools.partial(create_initial_population, size=4, n_allele=n_cities),
         fitness_func=functools.partial(calculate_fitness_score, distance_matrix=distance_matrix),
         selection_func=roulette_wheel_based_selection,
-        crossover_func=None,
-        mutation_func=None,
+        crossover_func=functools.partial(ordered_crossover, crossover_probability=0.9),
+        mutation_func=functools.partial(reverse_sequence_mutation, mutation_probability=0.15),
+        survivor_func=None,
         generation_limit=100,
     )
 
