@@ -77,6 +77,18 @@ def calculate_distances(n_cities: int, cities: List[City], distance_func: Callab
     return distance_matrix
 
 
+def has_converged(population: Population) -> bool:
+    """Check if all the chromosomes in the population are same or not
+
+    Args:
+        population (Population): Population to check
+
+    Returns:
+        bool: True if the population has convered, else False
+    """
+    return all(chromosome == population[0] for chromosome in population)
+
+
 ###########################################################################################################################
 ### Fitness Score Calculator
 ###########################################################################################################################
@@ -145,7 +157,9 @@ def roulette_wheel_based_selection(population: Population, fitness_func: Fitness
 ###########################################################################################################################
 ### Crossover Methods
 ###########################################################################################################################
-def ordered_crossover(parent_1: Chromosome, parent_2: Chromosome, crossover_probability: float) -> Tuple[Chromosome, Chromosome]:
+def ordered_crossover(
+    parent_1: Chromosome, parent_2: Chromosome, crossover_probability: float
+) -> Tuple[Chromosome, Chromosome]:
     """Ordered Crossover
 
     Args:
@@ -177,7 +191,7 @@ def ordered_crossover(parent_1: Chromosome, parent_2: Chromosome, crossover_prob
         if not holes_1[temp_1[(i + b + 1) % size]]:
             parent_1[k1 % size] = temp_1[(i + b + 1) % size]
             k1 += 1
-        
+
         if not holes_2[temp_2[(i + b + 1) % size]]:
             parent_2[k2 % size] = parent_2[(i + b + 1) % size]
             k2 += 1
@@ -223,7 +237,7 @@ def select_elites(fitness_scores: npt.NDArray[np.float64], elitism_rate: float) 
     elites = list()
     if offset:
         elites = fitness_scores.argsort()[:offset]
-    
+
     return offset, elites
 
 
@@ -241,37 +255,51 @@ def do_evolution(
 ) -> Tuple[Population, np.float64]:
     # Generate initial population
     population: Population = population_func()
+    population_size: int = population.shape[0]
     print("initial population ...", population)
 
     # Calculate fitness score for all the chromosomes
-    fitness_scores = fitness_func(population)
+    fitness_scores: npt.NDArray = fitness_func(population)
     print(
         "fitness scores ... ",
         fitness_scores,
     )
 
-    new_population = list()
     survivor_offset, survivor_idxs = survivor_func(fitness_scores)
-    if len(survivor_idxs) > 0:
-        new_population.append(population[survivor_idxs])
+    print("survivor offset ... ", survivor_offset)
 
-    parent_1, parent_2 = selection_func(population, fitness_func)
+    for gen in range(generation_limit):
+        print("Generation ... ", gen)
 
-    print(parent_1, parent_2)
+        new_population = list()
+        if len(survivor_idxs) > 0:
+            new_population.append(population[survivor_idxs])
 
-    child_1, child_2 = crossover_func(parent_1, parent_2)
+        fittest_chromosome_idx = fitness_scores.argmin()
 
-    print(child_1, child_2)
+        for idx in range(survivor_offset, population.shape[0]):
+            new_population.append(population[idx])
 
-    mutated_child_1, mutated_child_2 = mutation_func(child_1), mutation_func(child_2)
+        # do mating
+        for idx in range(survivor_offset, population_size):
+            parent_1, parent_2 = selection_func(population, fitness_func)
 
-    print(mutated_child_1, mutated_child_2)
+            print(parent_1, parent_2)
 
-    for idx in range(survivor_offset, population.shape[0]):
-        new_population.append(population[idx])
+            child_1, child_2 = crossover_func(parent_1, parent_2)
 
+            print(child_1, child_2)
 
-    pass
+            new_population.extend([child_1, child_2])
+
+        # do mutation
+        for idx in range(survivor_offset, population_size):
+            mutated_child_1, mutated_child_2 = mutation_func(child_1), mutation_func(child_2)
+
+        if has_converged(population):
+            break
+
+        return (new_population[fittest_chromosome_idx], fitness_scores[fittest_chromosome_idx])
 
 
 ###########################################################################################################################
