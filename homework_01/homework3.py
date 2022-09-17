@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 import sys
 import functools
-from math import factorial
+from math import ceil
 from itertools import permutations
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, List, Tuple
 
 import numpy as np
 import numpy.typing as npt
@@ -23,7 +23,7 @@ FitnessFunc = Callable[
 SelectionFunc = Callable[[Population, FitnessFunc], npt.NDArray]
 CrossoverFunc = Callable[[Chromosome, Chromosome], Tuple[Chromosome, Chromosome]]
 MutationFunc = Callable[[Chromosome], Chromosome]
-SurvivorFunc = Callable[[Population, FitnessFunc], npt.NDArray]
+SurvivorFunc = Callable[[Population, FitnessFunc], List[int]]
 
 
 ###########################################################################################################################
@@ -213,7 +213,18 @@ def reverse_sequence_mutation(chromosome: Chromosome, mutation_probability: floa
 ###########################################################################################################################
 ### Survivor Selection Methods
 ###########################################################################################################################
+def select_elites(fitness_scores: npt.NDArray[np.float64], elitism_rate: float) -> Tuple[int, List[int]]:
+    population_size: int = fitness_scores.shape[0]
 
+    offset = ceil(population_size * elitism_rate)
+    if offset > population_size:
+        raise ValueError("Elitism Rate must be between [0, 1].")
+
+    elites = list()
+    if offset:
+        elites = fitness_scores.argsort()[:offset]
+    
+    return offset, elites
 
 
 ###########################################################################################################################
@@ -225,20 +236,26 @@ def do_evolution(
     selection_func: SelectionFunc,
     crossover_func: CrossoverFunc,
     mutation_func: MutationFunc,
-    survivor_func: Optional[SurvivorFunc],
+    survivor_func: SurvivorFunc,
     generation_limit: int,
 ) -> Tuple[Population, np.float64]:
     # Generate initial population
-    initial_population: Population = population_func()
-    print("initial population ...", initial_population)
+    population: Population = population_func()
+    print("initial population ...", population)
 
     # Calculate fitness score for all the chromosomes
+    fitness_scores = fitness_func(population)
     print(
         "fitness scores ... ",
-        fitness_func(initial_population),
+        fitness_scores,
     )
 
-    parent_1, parent_2 = selection_func(initial_population, fitness_func)
+    new_population = list()
+    survivor_offset, survivor_idxs = survivor_func(fitness_scores)
+    if len(survivor_idxs) > 0:
+        new_population.append(population[survivor_idxs])
+
+    parent_1, parent_2 = selection_func(population, fitness_func)
 
     print(parent_1, parent_2)
 
@@ -249,6 +266,10 @@ def do_evolution(
     mutated_child_1, mutated_child_2 = mutation_func(child_1), mutation_func(child_2)
 
     print(mutated_child_1, mutated_child_2)
+
+    for idx in range(survivor_offset, population.shape[0]):
+        new_population.append(population[idx])
+
 
     pass
 
@@ -277,7 +298,7 @@ def main():
         selection_func=roulette_wheel_based_selection,
         crossover_func=functools.partial(ordered_crossover, crossover_probability=0.9),
         mutation_func=functools.partial(reverse_sequence_mutation, mutation_probability=0.15),
-        survivor_func=None,
+        survivor_func=functools.partial(select_elites, elitism_rate=0.1),
         generation_limit=100,
     )
 
