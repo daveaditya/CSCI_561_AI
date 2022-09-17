@@ -175,7 +175,7 @@ def crossover(parent_1: Chromosome, parent_2: Chromosome, start_index: int, end_
 def execute_evolution(
     population_func: PopulationFunc,
     fitness_func: FitnessFunc,
-    selection_func: Optional[SelectionFunc],
+    selection_func: SelectionFunc,
     crossover_func: Optional[CrossoverFunc],
     mutation_func: Optional[MutationFunc],
     generation_limit: int,
@@ -189,6 +189,10 @@ def execute_evolution(
         "fitness scores ... ",
         fitness_func(initial_population),
     )
+
+    print(selection_func(initial_population, fitness_func))
+
+
     pass
 
 
@@ -213,7 +217,7 @@ def main():
     last_population, generation = execute_evolution(
         population_func=functools.partial(create_initial_population, size=4, n_allele=n_cities),
         fitness_func=functools.partial(calculate_fitness_score, distance_matrix=distance_matrix),
-        selection_func=None,
+        selection_func=roulette_wheel_based_selection,
         crossover_func=None,
         mutation_func=None,
         generation_limit=100,
