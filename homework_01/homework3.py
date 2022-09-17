@@ -3,17 +3,19 @@ import sys
 import functools
 from math import factorial
 from itertools import permutations
-from typing import Callable, List, Tuple
+from typing import Callable, List, Optional, Tuple
 
 import numpy as np
 import numpy.typing as npt
 from scipy.spatial.distance import euclidean
 
-# Type Hints
+###########################################################################################################################
+### Type Hinting
+###########################################################################################################################
 City = Tuple[int, int, int]
 
-Chromosome = List[int]  # represents one solution i.e. a single path in TSP
-Population = List[Chromosome]  # represents all the paths
+Chromosome = npt.NDArray[np.int32]  # represents one solution i.e. a single path in TSP
+Population = npt.NDArray[np.int32]  # represents all the paths
 PopulationFunc = Callable[[], Population]  # A function that generates the population
 FitnessFunc = Callable[
     [Chromosome, npt.NDArray[np.float64]], np.float64
@@ -23,6 +25,9 @@ CrossoverFunc = Callable[[Chromosome, Chromosome], Tuple[Chromosome, Chromosome]
 MutationFunc = Callable[[Chromosome], Chromosome]
 
 
+###########################################################################################################################
+### Helper Functions
+###########################################################################################################################
 def read_input(input_file_path: str) -> Tuple[int, List[City]]:
     """Parses the input file and returns the number of cities and a list containing the coordinates of the cities.
 
@@ -47,7 +52,7 @@ def print_cities_for_path(cities: List[City], path: Chromosome) -> None:
 
     Args:
         cities (List[City]): List of all cities
-        path (Genome): Path taken to visit all cities. Contains the index into the list of cities
+        path (Chromosome): Path taken to visit all cities. Contains the index into the list of cities
     """
     for city_idx in path:
         print(f"{cities[city_idx][0]}{cities[city_idx][1]}{cities[city_idx][2]}")
@@ -71,6 +76,9 @@ def calculate_distances(n_cities: int, cities: List[City], distance_func: Callab
     return distance_matrix
 
 
+###########################################################################################################################
+### Fitness Score Calculator
+###########################################################################################################################
 def calculate_fitness_score(chromosome: Chromosome, distance_matrix: npt.NDArray[np.float64]) -> np.float64:
     """Calculates the fitness score of a Chromosome using the distance matrix.
 
@@ -90,7 +98,9 @@ def calculate_fitness_score(chromosome: Chromosome, distance_matrix: npt.NDArray
     return path_cost
 
 
-# a. initial population
+###########################################################################################################################
+### Initial Population
+###########################################################################################################################
 def create_initial_population(size: int, n_allele: int) -> Population:
     """Creates paths randomly or based on some heuristics.
 
@@ -101,59 +111,90 @@ def create_initial_population(size: int, n_allele: int) -> Population:
     Returns:
         Population: initial population
     """
-    # a.1 Generate Randome Path / Genome
+    # a.1 Generate Randome Path / Chromosome
     def generate_random_chromosome(size: int, n_allele: int):
         random_chromosomes = list(permutations(range(n_allele)))[:size]
-        return list(map(lambda t: [*t, t[0]], random_chromosomes))
+        return np.fromiter(map(lambda t: [*t, t[0]], random_chromosomes))
 
     initial_population: Population = generate_random_chromosome(size, n_allele)
     return initial_population
 
 
-# b. parent selection
-def create_mating_pool(population: List[List[int]], rank_list: Tuple[int, float]):
+###########################################################################################################################
+### Selection Methods
+###########################################################################################################################
+def roulette_wheel_based_selection(population: Population, fitness_func: FitnessFunc) -> Chromosome:
     """Defines the best fit individuals and selects them for breeding. Roulette wheel-based selection.
 
     Args:
-        population (List[List[int]]): list of path from which the mating pool is created
-        rank_list (Tuple[int, float]): tuple of index and fitness scores sorted in descending order
+        population (Population): list of path from which the mating pool is created
 
     Returns:
-        List[int]: list of populations selected for mating
+        Chromosome: a selected chromosome, ready to mate!
     """
-    mating_pool: List[int] = list()
+    fitness_scores: npt.NDArray[np.float64] = np.fromiter(map(fitness_func, population))
+    population_fitness = fitness_scores.sum()
 
-    # TODO: logic here ...
+    # calculate the probablity for each chromosome, here we are minimizing and hence 1 - probability
+    chromosome_probability = [(1 - score / population_fitness) for score in fitness_scores]
 
-    return mating_pool
+    return np.random.choice(population, chromosome_probability)
 
 
-# c. crossover
-def crossover(parent_1: List[int], parent_2: List[int], start_index: int, end_index: int):
+###########################################################################################################################
+### Crossover Methods
+###########################################################################################################################
+def crossover(parent_1: Chromosome, parent_2: Chromosome, start_index: int, end_index: int) -> Chromosome:
     """two point crossover
 
     Args:
-        parent_1 (List[int]): list containing the random sequence of cities for the salesman to follow
-        parent_2 (List[int]): list containing the random sequence of citites for the salesman to follow
+        parent_1 (Chromosome): list containing the random sequence of cities for the salesman to follow
+        parent_2 (Chromosome): list containing the random sequence of citites for the salesman to follow
         start_index (int): start index of the subarray to be chose from parent 1
         end_index (int): end index of the subarray to be chosen from parent 1
 
     Returns:
-        List[int]: child after performing crossover
+        Chromosome: child after performing crossover
     """
-    child: List[int] = list()
+    child: Chromosome = list()
 
     return child
 
 
-# d. mutation
+###########################################################################################################################
+### Mutation Methods
+###########################################################################################################################
+
+
 # e. find and store best
 
-# f. run evolution
 
-# TODO: note, minimize distance
+###########################################################################################################################
+### Execute Evolution
+###########################################################################################################################
+def execute_evolution(
+    population_func: PopulationFunc,
+    fitness_func: FitnessFunc,
+    selection_func: Optional[SelectionFunc],
+    crossover_func: Optional[CrossoverFunc],
+    mutation_func: Optional[MutationFunc],
+    generation_limit: int,
+) -> Tuple[Population, np.float64]:
+    # Generate initial population
+    initial_population: Population = population_func()
+    print("initial population ...", initial_population)
+
+    # Calculate fitness score for all the chromosomes
+    print(
+        "fitness scores ... ",
+        fitness_func(initial_population),
+    )
+    pass
 
 
+###########################################################################################################################
+### Main
+###########################################################################################################################
 def main():
     # Take test files as input from commandline or use the default "input.txt" file
     input_file_path = "./input.txt"
@@ -169,15 +210,17 @@ def main():
     distance_matrix = calculate_distances(n_cities, cities, euclidean)
     print("distance matrix .. ", distance_matrix)
 
-    # Generate initial population
-    initial_population: Population = create_initial_population(size=4, n_allele=n_cities)
-    print("initial population ...", initial_population)
-
-    # Calculate fitness score for all the chromosomes
-    print(
-        "fitness scores ... ",
-        list(map(functools.partial(calculate_fitness_score, distance_matrix=distance_matrix), initial_population)),
+    last_population, generation = execute_evolution(
+        population_func=functools.partial(create_initial_population, size=4, n_allele=n_cities),
+        fitness_func=functools.partial(calculate_fitness_score, distance_matrix=distance_matrix),
+        selection_func=None,
+        crossover_func=None,
+        mutation_func=None,
+        generation_limit=100,
     )
+
+    print("Generation: ", generation)
+    print("last_population ... ", last_population)
 
 
 if __name__ == "__main__":
