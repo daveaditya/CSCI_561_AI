@@ -109,6 +109,9 @@ def calculate_fitness_score(chromosome: Chromosome, distance_matrix: npt.NDArray
         path_cost += distance_matrix[prev_city_idx][idx]
         prev_city_idx = idx
 
+    # add return cost i.e. the last destination to the start city
+    path_cost += distance_matrix[prev_city_idx][chromosome[0]]
+
     return path_cost
 
 
@@ -127,10 +130,11 @@ def create_initial_population(size: int, n_allele: int) -> Population:
     """
     # a.1 Generate Randome Path / Chromosome
     def generate_random_chromosome(size: int, n_allele: int) -> npt.NDArray:
-        random_chromosomes = list(list(sample) for sample in permutations(range(n_allele)))[:size]
+        # random_chromosomes = list(list(sample) for sample in permutations(range(n_allele)))[:size]
+        random_chromosomes = np.array([list(sample) for sample in permutations(range(n_allele))][:size])
 
         # append the first city/item to the end of each item
-        random_chromosomes = np.array(list(map(lambda t: [*t, t[0]], random_chromosomes)))
+        # random_chromosomes = np.array(list(map(lambda t: [*t, t[0]], random_chromosomes)))
 
         return random_chromosomes
 
@@ -166,7 +170,7 @@ def roulette_wheel_based_selection(population: Population, fitness_func: Fitness
     ]
     population_sorted: npt.NDArray = population[chromosome_probability_sorted_idx[::-1]]
 
-    for _ in range(2):
+    while len(parents) != 2:
         pointer = np.random.random() * population_fitness
 
         sum_ = 0
@@ -283,10 +287,14 @@ def do_evolution(
     # Generate initial population
     population: Population = population_func()
 
-    prev_fitness_score = float("inf")
+    prev_best_fitness_score = float('inf')
     for gen in range(generation_limit):
         print("Generation ... #", gen)
-        print("Population ... ", population)
+
+        if gen == 0:
+            print("Initial Population ... ", population)
+        else:
+            print("Population ... ", population)
 
         population_size: int = population.shape[0]
         print("Population size ... ", population_size)
@@ -306,18 +314,23 @@ def do_evolution(
 
         # select potential mates and generate children
         mating_pool = population.copy()
-        for _ in range(survivor_offset, population_size, 2):
+        for i in range(survivor_offset, population_size, 2):
+            # if the mating pool is odd sized, there is only one parent left, and hence no one to mate
+            # if i >= mating_pool.shape[0]:
+            #     break
+
             parent_1, parent_2 = selection_func(mating_pool, fitness_func)
 
             child_1, child_2 = crossover_func(parent_1, parent_2)
             new_population.extend([child_1, child_2])
 
             # remove selected parents from pool
-            delete_idx = list()
-            for idx, chromosome in enumerate(mating_pool):
-                if (parent_1 == chromosome).all() or (parent_2 == chromosome).all():
-                    delete_idx.append(idx)
-            np.delete(mating_pool, delete_idx)
+            # delete_idx = list()
+            # for idx, chromosome in enumerate(mating_pool):
+            #     if (parent_1 == chromosome).all() or (parent_2 == chromosome).all():
+            #         delete_idx.append(idx)
+
+            # mating_pool = np.delete(mating_pool, delete_idx, axis=0)
 
         print("After Crossover ... ", new_population)
 
@@ -333,11 +346,15 @@ def do_evolution(
 
         print("Final ... ", population)
 
+        # check for convergence
         if has_converged(population):
             break
 
-        if gen == 1:
-            return None, None, None
+        # check if tolerance criteria is met
+        current_best_fitness_score = fitness_scores[fittest_chromosome_idx]
+        if abs(prev_best_fitness_score - current_best_fitness_score) <= tolerance:
+            break
+        prev_best_fitness_score = current_best_fitness_score
 
     return (gen, new_population[fittest_chromosome_idx], fitness_scores[fittest_chromosome_idx])
 
