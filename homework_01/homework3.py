@@ -6,6 +6,7 @@ from math import ceil
 from pathlib import Path
 from itertools import permutations
 from typing import Callable, List, Optional, Tuple
+from warnings import warn
 
 import numpy as np
 import numpy.typing as npt
@@ -26,6 +27,7 @@ SelectionFunc = Callable[[Population, FitnessFunc], npt.NDArray]
 CrossoverFunc = Callable[[Chromosome, Chromosome], Tuple[Chromosome, Chromosome]]
 MutationFunc = Callable[[Chromosome], Chromosome]
 SurvivorFunc = Callable[[Population, FitnessFunc], List[int]]
+CooldownFunc = Callable[[float, float], float]
 OutputFunc = Callable[[Chromosome], None]
 
 ###########################################################################################################################
@@ -105,6 +107,9 @@ def has_converged(population: Population, fitness_func: FitnessFunc) -> bool:
     )
 
 
+def cooldown(temperature: float, cool_down_date: float):
+    return temperature * cool_down_date
+
 ###########################################################################################################################
 ### Fitness Score Calculator
 ###########################################################################################################################
@@ -143,8 +148,18 @@ def create_initial_population(size: int, n_allele: int, kind: str) -> Population
     Returns:
         Population: initial population
     """
-    # a.1 First `size` chromosome from all the permutations
+
     def generate_from_permutation(size: int, n_allele: int) -> npt.NDArray:
+        """A naive method. Should not be used.
+           WARN: Don't use.
+        Args:
+            size (int): size of the chromosome
+            n_allele (int): max value of the allele
+
+        Returns:
+            npt.NDArray: First `size` number of chromosomes from permutations
+        """
+        warn("Do not use this method. Requires memory O(n!).", DeprecationWarning, stacklevel=2)
         return np.array([list(sample) for sample in permutations(range(n_allele))][:size])
 
     def generate_randomly(size, n_allele):
@@ -155,7 +170,22 @@ def create_initial_population(size: int, n_allele: int, kind: str) -> Population
         return np.array(random_chromosomes)
 
     def generate_from_cauchy_distribution(size: int, n_allele: int) -> npt.NDArray:
-        pass
+        random_chromosomes = list()
+        rng = np.random.default_rng(seed=42)
+
+        for _ in range(size):
+            # make sure the list has unique list, because TSP cannot have duplicate cities
+            while True:
+                random_chromosome = np.floor(np.abs((n_allele * rng.standard_cauchy(n_allele)) % n_allele)).astype(
+                    np.int32
+                )
+                _, unique_counts = np.unique(random_chromosome, return_counts=True)
+
+                if all(unique_counts == 1):
+                    random_chromosomes.append(random_chromosome)
+                    break
+
+        return np.array(random_chromosomes)
 
     if kind == "permutation":
         return generate_from_permutation(size, n_allele)
@@ -309,14 +339,20 @@ def do_evolution(
     generation_limit: int,
     tolerance: float,
     population_decay_rate: float,
+    cooldown_func: CooldownFunc,
     output_func: Optional[OutputFunc] = None,
 ) -> Tuple[int, Population, np.float64]:
+    # initial temperature
+    temperature = 10000.0
+
     # Generate initial population
     population: Population = population_func()
 
     prev_best_fitness_score = float("inf")
+
     for gen in range(generation_limit):
         print(f"\n********************* START - GEN #{gen} *************************")
+        print(f"Temperature: {temperature}")
 
         # if gen == 0:
         #     print("\nInitial Population ... \n", population)
@@ -356,7 +392,6 @@ def do_evolution(
         population = np.array(new_population)
         # print("New Population ... \n", population)
 
-
         new_population_fitness_scores = np.apply_along_axis(fitness_func, 1, population)
         fittest_chromosome_idx = new_population_fitness_scores.argmin()
 
@@ -382,6 +417,11 @@ def do_evolution(
             print("\nFitness Score: ", fitness_scores[fittest_chromosome_idx])
             output_func(path=fittest_chromosome)
 
+        if temperature < 1000.0:
+            print(f"\n!!!!!   TEMPERATURE TOO LOW -- GEN #{gen}   !!!!!\n")
+            break
+        temperature = cooldown_func(temperature)
+
     return (gen, new_population[fittest_chromosome_idx], fitness_scores[fittest_chromosome_idx])
 
 
@@ -404,7 +444,7 @@ def main():
     # print("distance matrix .. ", distance_matrix)
 
     n_generation, fittest_chromosome, fitness_score = do_evolution(
-        population_func=functools.partial(create_initial_population, size=1024, n_allele=n_cities, kind="random"),
+        population_func=functools.partial(create_initial_population, size=1024, n_allele=n_cities, kind="cauchy"),
         fitness_func=functools.partial(calculate_fitness_score, distance_matrix=distance_matrix),
         selection_func=roulette_wheel_based_selection,
         crossover_func=functools.partial(ordered_crossover, crossover_probability=0.90),
@@ -413,6 +453,7 @@ def main():
         generation_limit=10000,
         tolerance=1e-10,
         population_decay_rate=0.45,
+        cooldown_func = functools.partial(cooldown, cool_down_date=0.95)
         output_func=functools.partial(store_cities_for_path, cities=cities, output_file_path="./output.txt"),
     )
 
