@@ -355,12 +355,12 @@ def do_evolution(
         print(f"Temperature: {temperature}")
 
         # if gen == 0:
-        #     print("\nInitial Population ... \n", population)
+        #     print("\nInitial Population: \n", population)
         # else:
-        #     print("\nPopulation ... \n", population)
+        #     print("\nPopulation: \n", population)
 
         population_size: int = population.shape[0]
-        print("Population size ... ", population_size)
+        print("Population size: ", population_size)
 
         # Calculate fitness score for all the chromosomes
         fitness_scores: npt.NDArray = np.apply_along_axis(fitness_func, 1, population)
@@ -372,7 +372,7 @@ def do_evolution(
 
         if len(survivor_idxs) > 0:
             new_population.extend(population[survivor_idxs])
-        # print("Save survivors ... ", new_population)
+        # print("Save survivors: ", new_population)
 
         # reduce population each time by the `population_decay_rate`
         for _ in range(ceil(population_size * population_decay_rate) - survivor_offset):
@@ -380,17 +380,17 @@ def do_evolution(
             # select potential mates and generate children
             parent_1, parent_2 = selection_func(population, fitness_func)
             child_1, child_2 = crossover_func(parent_1, parent_2)
-            # print("\nAfter Crossover ... \n", new_population)
+            # print("\nAfter Crossover: \n", new_population)
 
             # mutate children
             mutated_child_1, mutated_child_2 = mutation_func(child_1), mutation_func(child_2)
 
             new_population.extend([mutated_child_1, mutated_child_2])
-            # print("\nAfter mutation ... \n", new_population)
+            # print("\nAfter mutation: \n", new_population)
 
         # update population
         population = np.array(new_population)
-        # print("New Population ... \n", population)
+        # print("New Population: \n", population)
 
         new_population_fitness_scores = np.apply_along_axis(fitness_func, 1, population)
         fittest_chromosome_idx = new_population_fitness_scores.argmin()
@@ -436,15 +436,15 @@ def main():
 
     # Read input file
     n_cities, cities = read_input(input_file_path)
-    print("n_cities  ... ", n_cities)
-    # print("cities ... ", cities)
+    print("n_cities : ", n_cities)
+    # print("cities: ", cities)
 
     # Create distance matrix
     distance_matrix = calculate_distances(n_cities, cities, euclidean)
     # print("distance matrix .. ", distance_matrix)
 
     n_generation, fittest_chromosome, fitness_score = do_evolution(
-        population_func=functools.partial(create_initial_population, size=1024, n_allele=n_cities, kind="cauchy"),
+        population_func=functools.partial(create_initial_population, size=1024, n_allele=n_cities, kind="random"),
         fitness_func=functools.partial(calculate_fitness_score, distance_matrix=distance_matrix),
         selection_func=roulette_wheel_based_selection,
         crossover_func=functools.partial(ordered_crossover, crossover_probability=0.90),
@@ -453,7 +453,7 @@ def main():
         generation_limit=10000,
         tolerance=1e-10,
         population_decay_rate=0.45,
-        cooldown_func = functools.partial(cooldown, cool_down_date=0.95)
+        cooldown_func = functools.partial(cooldown, cool_down_date=0.95),
         output_func=functools.partial(store_cities_for_path, cities=cities, output_file_path="./output.txt"),
     )
 
