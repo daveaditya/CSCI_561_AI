@@ -296,7 +296,7 @@ def do_evolution(
     survivor_func: SurvivorFunc,
     generation_limit: int,
     tolerance: float,
-    output_func: Optional[OutputFunc] = None
+    output_func: Optional[OutputFunc] = None,
 ) -> Tuple[int, Population, np.float64]:
     # Generate initial population
     population: Population = population_func()
@@ -329,7 +329,7 @@ def do_evolution(
         # select potential mates and generate children
         mating_pool = population.copy()
         for i in range(survivor_offset, population_size, 2):
-            # if the mating pool is odd sized, there is only one parent left, and hence no one to mate
+            # # if the mating pool is odd sized, there is only one parent left, and hence no one to mate
             # if i >= mating_pool.shape[0]:
             #     break
 
@@ -338,7 +338,7 @@ def do_evolution(
             child_1, child_2 = crossover_func(parent_1, parent_2)
             new_population.extend([child_1, child_2])
 
-            # remove selected parents from pool
+            # # remove selected parents from pool
             # delete_idx = list()
             # for idx, chromosome in enumerate(mating_pool):
             #     if (parent_1 == chromosome).all() or (parent_2 == chromosome).all():
@@ -349,9 +349,8 @@ def do_evolution(
         print("After Crossover ... ", new_population)
 
         # do mutation
-        for idx in range(survivor_offset, population_size, 2):
+        for idx in range(survivor_offset, population_size):
             new_population[idx] = mutation_func(new_population[idx])
-            new_population[idx + 1] = mutation_func(new_population[idx + 1])
 
         print("After mutation ... ", new_population)
 
@@ -375,7 +374,7 @@ def do_evolution(
             fittest_chromosome = new_population[fittest_chromosome_idx]
             fittest_chromosome = np.append(fittest_chromosome, fittest_chromosome[0])
 
-            output_func(new_population[fittest_chromosome_idx])
+            output_func(path=fittest_chromosome)
 
     return (gen, new_population[fittest_chromosome_idx], fitness_scores[fittest_chromosome_idx])
 
@@ -399,15 +398,15 @@ def main():
     print("distance matrix .. ", distance_matrix)
 
     n_generation, fittest_chromosome, fitness_score = do_evolution(
-        population_func=functools.partial(create_initial_population, size=4, n_allele=n_cities),
+        population_func=functools.partial(create_initial_population, size=30, n_allele=n_cities),
         fitness_func=functools.partial(calculate_fitness_score, distance_matrix=distance_matrix),
         selection_func=roulette_wheel_based_selection,
         crossover_func=functools.partial(ordered_crossover, crossover_probability=0.9),
-        mutation_func=functools.partial(reverse_sequence_mutation, mutation_probability=0.15),
+        mutation_func=functools.partial(reverse_sequence_mutation, mutation_probability=0.20),
         survivor_func=functools.partial(select_elites, elitism_rate=0.1),
-        generation_limit=100,
+        generation_limit=1000,
         tolerance=1e-5,
-        output_func=functools.partial(store_cities_for_path, cities=cities, output_file_path="./output.txt")
+        output_func=functools.partial(store_cities_for_path, cities=cities, output_file_path="./output.txt"),
     )
 
     print("Generation: ", n_generation)
