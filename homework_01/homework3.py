@@ -149,7 +149,7 @@ def create_initial_population(size: int, n_allele: int, kind: str) -> Population
 
     def generate_randomly(size, n_allele):
         random_chromosomes = list()
-        rng = np.random.default_rng()
+        rng = np.random.default_rng(seed=42)
         for _ in range(size):
             random_chromosomes.append(rng.choice(n_allele, size=n_allele, replace=False))
         return np.array(random_chromosomes)
