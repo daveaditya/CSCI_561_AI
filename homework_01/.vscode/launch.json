@@ -30,6 +30,33 @@
             "args": ["./sample/input3.txt"],
             "console": "integratedTerminal",
             "justMyCode": true
+        },
+        {
+            "name": "Input 04",
+            "type": "python",
+            "request": "launch",
+            "program": "homework3.py",
+            "args": ["./sample/input4.txt"],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Input 05",
+            "type": "python",
+            "request": "launch",
+            "program": "homework.py",
+            "args": ["./sample/input5.txt"],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Input 06",
+            "type": "python",
+            "request": "launch",
+            "program": "homework3.py",
+            "args": ["./sample/input6.txt"],
+            "console": "integratedTerminal",
+            "justMyCode": true
         }
     ]
 }
