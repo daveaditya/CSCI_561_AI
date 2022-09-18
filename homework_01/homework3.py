@@ -133,7 +133,7 @@ def calculate_fitness_score(chromosome: Chromosome, distance_matrix: npt.NDArray
 ###########################################################################################################################
 ### Initial Population
 ###########################################################################################################################
-def create_initial_population(size: int, n_allele: int) -> Population:
+def create_initial_population(size: int, n_allele: int, kind: str) -> Population:
     """Creates paths randomly or based on some heuristics.
 
     Args:
@@ -143,18 +143,28 @@ def create_initial_population(size: int, n_allele: int) -> Population:
     Returns:
         Population: initial population
     """
-    # a.1 Generate Randome Path / Chromosome
-    def generate_random_chromosome(size: int, n_allele: int) -> npt.NDArray:
-        # random_chromosomes = list(list(sample) for sample in permutations(range(n_allele)))[:size]
-        random_chromosomes = np.array([list(sample) for sample in permutations(range(n_allele))][:size])
+    # a.1 First `size` chromosome from all the permutations
+    def generate_from_permutation(size: int, n_allele: int) -> npt.NDArray:
+        return np.array([list(sample) for sample in permutations(range(n_allele))][:size])
 
-        # append the first city/item to the end of each item
-        # random_chromosomes = np.array(list(map(lambda t: [*t, t[0]], random_chromosomes)))
+    def generate_randomly(size, n_allele):
+        random_chromosomes = list()
+        rng = np.random.default_rng()
+        for _ in range(size):
+            random_chromosomes.append(rng.choice(n_allele, size=n_allele, replace=False))
+        return np.array(random_chromosomes)
 
-        return random_chromosomes
+    def generate_from_cauchy_distribution(size: int, n_allele: int) -> npt.NDArray:
+        pass
 
-    population: Population = generate_random_chromosome(size, n_allele)
-    return population
+    if kind == "permutation":
+        return generate_from_permutation(size, n_allele)
+    elif kind == "random":
+        return generate_randomly(size, n_allele)
+    elif kind == "cauchy":
+        return generate_from_cauchy_distribution(size, n_allele)
+    else:
+        raise ValueError("In valid value for kind. Must be 'random' or 'cauchy'.")
 
 
 ###########################################################################################################################
@@ -307,10 +317,10 @@ def do_evolution(
     for gen in range(generation_limit):
         print(f"\n********************* START - GEN #{gen} *************************")
 
-        if gen == 0:
-            print("\nInitial Population ... \n", population)
-        else:
-            print("\nPopulation ... \n", population)
+        # if gen == 0:
+        #     print("\nInitial Population ... \n", population)
+        # else:
+        #     print("\nPopulation ... \n", population)
 
         population_size: int = population.shape[0]
         print("Population size ... ", population_size)
@@ -326,7 +336,7 @@ def do_evolution(
 
         if len(survivor_idxs) > 0:
             new_population.extend(population[survivor_idxs])
-        print("Save survivors ... ", new_population)
+        # print("Save survivors ... ", new_population)
 
         # select potential mates and generate children
         mating_pool = population.copy()
@@ -348,18 +358,18 @@ def do_evolution(
 
             # mating_pool = np.delete(mating_pool, delete_idx, axis=0)
 
-        print("\nAfter Crossover ... \n", new_population)
+        # print("\nAfter Crossover ... \n", new_population)
 
         # do mutation
         for idx in range(survivor_offset, population_size):
             new_population[idx] = mutation_func(new_population[idx])
 
-        print("\nAfter mutation ... \n", new_population)
+        # print("\nAfter mutation ... \n", new_population)
 
         # update population
         population = np.array(new_population)
 
-        print("New Population ... \n", population)
+        # print("New Population ... \n", population)
 
         print(f"\n~~~~~~~~~~~~~~~~~~~~~~~ END - GEN #{gen} ~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
@@ -397,21 +407,21 @@ def main():
     # Read input file
     n_cities, cities = read_input(input_file_path)
     print("n_cities  ... ", n_cities)
-    print("cities ... ", cities)
+    # print("cities ... ", cities)
 
     # Create distance matrix
     distance_matrix = calculate_distances(n_cities, cities, euclidean)
-    print("distance matrix .. ", distance_matrix)
+    # print("distance matrix .. ", distance_matrix)
 
     n_generation, fittest_chromosome, fitness_score = do_evolution(
-        population_func=functools.partial(create_initial_population, size=50, n_allele=n_cities),
+        population_func=functools.partial(create_initial_population, size=50, n_allele=n_cities, kind="random"),
         fitness_func=functools.partial(calculate_fitness_score, distance_matrix=distance_matrix),
         selection_func=roulette_wheel_based_selection,
         crossover_func=functools.partial(ordered_crossover, crossover_probability=0.92),
         mutation_func=functools.partial(reverse_sequence_mutation, mutation_probability=0.05),
         survivor_func=functools.partial(select_elites, elitism_rate=0.1),
         generation_limit=10000,
-        tolerance=1e-8,
+        tolerance=1e-10,
         output_func=functools.partial(store_cities_for_path, cities=cities, output_file_path="./output.txt"),
     )
 
