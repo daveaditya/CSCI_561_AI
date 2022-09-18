@@ -404,14 +404,14 @@ def main():
     print("distance matrix .. ", distance_matrix)
 
     n_generation, fittest_chromosome, fitness_score = do_evolution(
-        population_func=functools.partial(create_initial_population, size=30, n_allele=n_cities),
+        population_func=functools.partial(create_initial_population, size=50, n_allele=n_cities),
         fitness_func=functools.partial(calculate_fitness_score, distance_matrix=distance_matrix),
         selection_func=roulette_wheel_based_selection,
-        crossover_func=functools.partial(ordered_crossover, crossover_probability=0.9),
-        mutation_func=functools.partial(reverse_sequence_mutation, mutation_probability=0.20),
+        crossover_func=functools.partial(ordered_crossover, crossover_probability=0.92),
+        mutation_func=functools.partial(reverse_sequence_mutation, mutation_probability=0.16),
         survivor_func=functools.partial(select_elites, elitism_rate=0.1),
-        generation_limit=1000,
-        tolerance=1e-5,
+        generation_limit=10000,
+        tolerance=1e-8,
         output_func=functools.partial(store_cities_for_path, cities=cities, output_file_path="./output.txt"),
     )
 
