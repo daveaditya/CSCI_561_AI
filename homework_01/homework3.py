@@ -436,8 +436,8 @@ def main():
 
     # Read input file
     n_cities, cities = read_input(input_file_path)
-    print("n_cities : ", n_cities)
-    # print("cities: ", cities)
+    print("# of City : ", n_cities)
+    # print("Cities: ", cities)
 
     # Create distance matrix
     distance_matrix = calculate_distances(n_cities, cities, euclidean)
