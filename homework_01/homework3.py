@@ -408,7 +408,7 @@ def main():
         fitness_func=functools.partial(calculate_fitness_score, distance_matrix=distance_matrix),
         selection_func=roulette_wheel_based_selection,
         crossover_func=functools.partial(ordered_crossover, crossover_probability=0.92),
-        mutation_func=functools.partial(reverse_sequence_mutation, mutation_probability=0.16),
+        mutation_func=functools.partial(reverse_sequence_mutation, mutation_probability=0.05),
         survivor_func=functools.partial(select_elites, elitism_rate=0.1),
         generation_limit=10000,
         tolerance=1e-8,
