@@ -308,6 +308,7 @@ def do_evolution(
     survivor_func: SurvivorFunc,
     generation_limit: int,
     tolerance: float,
+    population_decay_rate: float,
     output_func: Optional[OutputFunc] = None,
 ) -> Tuple[int, Population, np.float64]:
     # Generate initial population
@@ -332,54 +333,41 @@ def do_evolution(
         survivor_offset, survivor_idxs = survivor_func(fitness_scores)
 
         new_population = list()
-        fittest_chromosome_idx = fitness_scores.argmin()
 
         if len(survivor_idxs) > 0:
             new_population.extend(population[survivor_idxs])
         # print("Save survivors ... ", new_population)
 
-        # select potential mates and generate children
-        mating_pool = population.copy()
-        for i in range(survivor_offset, population_size, 2):
-            # # if the mating pool is odd sized, there is only one parent left, and hence no one to mate
-            # if i >= mating_pool.shape[0]:
-            #     break
+        # reduce population each time by the `population_decay_rate`
+        for _ in range(ceil(population_size * population_decay_rate) - survivor_offset):
 
-            parent_1, parent_2 = selection_func(mating_pool, fitness_func)
-
+            # select potential mates and generate children
+            parent_1, parent_2 = selection_func(population, fitness_func)
             child_1, child_2 = crossover_func(parent_1, parent_2)
-            new_population.extend([child_1, child_2])
+            # print("\nAfter Crossover ... \n", new_population)
 
-            # # remove selected parents from pool
-            # delete_idx = list()
-            # for idx, chromosome in enumerate(mating_pool):
-            #     if (parent_1 == chromosome).all() or (parent_2 == chromosome).all():
-            #         delete_idx.append(idx)
+            # mutate children
+            mutated_child_1, mutated_child_2 = mutation_func(child_1), mutation_func(child_2)
 
-            # mating_pool = np.delete(mating_pool, delete_idx, axis=0)
-
-        # print("\nAfter Crossover ... \n", new_population)
-
-        # do mutation
-        for idx in range(survivor_offset, population_size):
-            new_population[idx] = mutation_func(new_population[idx])
-
-        # print("\nAfter mutation ... \n", new_population)
+            new_population.extend([mutated_child_1, mutated_child_2])
+            # print("\nAfter mutation ... \n", new_population)
 
         # update population
         population = np.array(new_population)
-
         # print("New Population ... \n", population)
 
-        print(f"\n~~~~~~~~~~~~~~~~~~~~~~~ END - GEN #{gen} ~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+        print(f"\n~~~~~~~~~~~~~~~~~~~~~ END - GEN #{gen} ~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
         # check for convergence
         if has_converged(population, fitness_func):
             print(f"\n!!!!!   CONVERGED -- GEN #{gen}   !!!!!\n")
             break
 
+        new_population_fitness_scores = np.apply_along_axis(fitness_func, 1, population)
+        fittest_chromosome_idx = new_population_fitness_scores.argmin()
+
         # check if tolerance criteria is met
-        current_best_fitness_score = fitness_scores[fittest_chromosome_idx]
+        current_best_fitness_score = new_population_fitness_scores[fittest_chromosome_idx]
         if abs(prev_best_fitness_score - current_best_fitness_score) <= tolerance:
             print(f"\n!!!!!   TOLERANCE SATISFIED -- GEN #{gen}   !!!!\n")
             break
@@ -387,9 +375,10 @@ def do_evolution(
 
         if output_func:
             # Add the start state at the end to complete the TSP
-            fittest_chromosome = new_population[fittest_chromosome_idx]
+            fittest_chromosome = population[fittest_chromosome_idx]
             fittest_chromosome = np.append(fittest_chromosome, fittest_chromosome[0])
 
+            print("\nFitness Score: ", fitness_scores[fittest_chromosome_idx])
             output_func(path=fittest_chromosome)
 
     return (gen, new_population[fittest_chromosome_idx], fitness_scores[fittest_chromosome_idx])
@@ -414,21 +403,22 @@ def main():
     # print("distance matrix .. ", distance_matrix)
 
     n_generation, fittest_chromosome, fitness_score = do_evolution(
-        population_func=functools.partial(create_initial_population, size=50, n_allele=n_cities, kind="random"),
+        population_func=functools.partial(create_initial_population, size=1024, n_allele=n_cities, kind="random"),
         fitness_func=functools.partial(calculate_fitness_score, distance_matrix=distance_matrix),
         selection_func=roulette_wheel_based_selection,
-        crossover_func=functools.partial(ordered_crossover, crossover_probability=0.92),
-        mutation_func=functools.partial(reverse_sequence_mutation, mutation_probability=0.05),
+        crossover_func=functools.partial(ordered_crossover, crossover_probability=0.90),
+        mutation_func=functools.partial(reverse_sequence_mutation, mutation_probability=0.15),
         survivor_func=functools.partial(select_elites, elitism_rate=0.1),
         generation_limit=10000,
         tolerance=1e-10,
+        population_decay_rate=0.45,
         output_func=functools.partial(store_cities_for_path, cities=cities, output_file_path="./output.txt"),
     )
 
     print("\n================   RESULTS   =====================")
     print("Generation: ", n_generation)
-    print("fittest_chromosome ... ", fittest_chromosome)
-    print("fitness_score ... ", fitness_score)
+    print("Fittest_chromosome ... ", fittest_chromosome)
+    print("Fitness_score ... ", fitness_score)
     print("==================================================\n")
 
     # Store the final path results

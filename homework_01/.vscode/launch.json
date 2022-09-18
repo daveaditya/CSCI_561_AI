@@ -44,7 +44,7 @@
             "name": "Input 05",
             "type": "python",
             "request": "launch",
-            "program": "homework.py",
+            "program": "homework3.py",
             "args": ["./sample/input5.txt"],
             "console": "integratedTerminal",
             "justMyCode": true
