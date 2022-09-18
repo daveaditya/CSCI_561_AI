@@ -58,12 +58,12 @@ def store_cities_for_path(cities: List[City], path: Chromosome, output_file_path
         path (Chromosome): Path taken to visit all cities. Contains the index into the list of cities
     """
     # Create output directory if not exists
-    Path(output_file_path).mkdir(parents=True, exist_ok=True)
+    Path("/".join(output_file_path.split("/")[:-1])).mkdir(parents=True, exist_ok=True)
 
     # Save the file
     with open(output_file_path, "w") as output:
         for city_idx in path:
-            line = f"{cities[city_idx][0]}{cities[city_idx][1]}{cities[city_idx][2]}"
+            line = f"{cities[city_idx][0]} {cities[city_idx][1]} {cities[city_idx][2]}"
             print(line)
             output.write(line)
 
