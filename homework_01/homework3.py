@@ -371,6 +371,10 @@ def do_evolution(
         prev_best_fitness_score = current_best_fitness_score
 
         if output_func:
+            # Add the start state at the end to complete the TSP
+            fittest_chromosome = new_population[fittest_chromosome_idx]
+            fittest_chromosome = np.append(fittest_chromosome, fittest_chromosome[0])
+
             output_func(new_population[fittest_chromosome_idx])
 
     return (gen, new_population[fittest_chromosome_idx], fitness_scores[fittest_chromosome_idx])
@@ -411,6 +415,8 @@ def main():
     print("fitness_score ... ", fitness_score)
 
     # Store the final path results
+    # Add the start state at the end to complete the TSP
+    fittest_chromosome = np.append(fittest_chromosome, fittest_chromosome[0])
     store_cities_for_path(cities, fittest_chromosome, "./output.txt")
 
 
