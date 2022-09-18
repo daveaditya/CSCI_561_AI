@@ -356,15 +356,16 @@ def do_evolution(
         population = np.array(new_population)
         # print("New Population ... \n", population)
 
+
+        new_population_fitness_scores = np.apply_along_axis(fitness_func, 1, population)
+        fittest_chromosome_idx = new_population_fitness_scores.argmin()
+
         print(f"\n~~~~~~~~~~~~~~~~~~~~~ END - GEN #{gen} ~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
         # check for convergence
         if has_converged(population, fitness_func):
             print(f"\n!!!!!   CONVERGED -- GEN #{gen}   !!!!!\n")
             break
-
-        new_population_fitness_scores = np.apply_along_axis(fitness_func, 1, population)
-        fittest_chromosome_idx = new_population_fitness_scores.argmin()
 
         # check if tolerance criteria is met
         current_best_fitness_score = new_population_fitness_scores[fittest_chromosome_idx]
@@ -417,8 +418,8 @@ def main():
 
     print("\n================   RESULTS   =====================")
     print("Generation: ", n_generation)
-    print("Fittest_chromosome ... ", fittest_chromosome)
-    print("Fitness_score ... ", fitness_score)
+    print("Fitness Score: ", fitness_score)
+    print("Fittest Chromosome: ", fittest_chromosome)
     print("==================================================\n")
 
     # Store the final path results
