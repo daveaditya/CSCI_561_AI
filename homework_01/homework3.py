@@ -62,10 +62,12 @@ def store_cities_for_path(cities: List[City], path: Chromosome, output_file_path
 
     # Save the file
     with open(output_file_path, "w") as output:
+        print("============= FINAL OUTPUT ==============")
         for city_idx in path:
-            line = f"{cities[city_idx][0]} {cities[city_idx][1]} {cities[city_idx][2]}"
-            print(line)
+            line = f"{cities[city_idx][0]} {cities[city_idx][1]} {cities[city_idx][2]}\n"
+            print(line, end="")
             output.write(line)
+        print("=========================================")
 
 
 def calculate_distances(n_cities: int, cities: List[City], distance_func: Callable) -> npt.NDArray[np.float64]:
@@ -303,12 +305,12 @@ def do_evolution(
 
     prev_best_fitness_score = float("inf")
     for gen in range(generation_limit):
-        print("Generation ... #", gen)
+        print(f"\n********************* START - GEN #{gen} *************************")
 
         if gen == 0:
-            print("Initial Population ... ", population)
+            print("\nInitial Population ... \n", population)
         else:
-            print("Population ... ", population)
+            print("\nPopulation ... \n", population)
 
         population_size: int = population.shape[0]
         print("Population size ... ", population_size)
@@ -346,26 +348,30 @@ def do_evolution(
 
             # mating_pool = np.delete(mating_pool, delete_idx, axis=0)
 
-        print("After Crossover ... ", new_population)
+        print("\nAfter Crossover ... \n", new_population)
 
         # do mutation
         for idx in range(survivor_offset, population_size):
             new_population[idx] = mutation_func(new_population[idx])
 
-        print("After mutation ... ", new_population)
+        print("\nAfter mutation ... \n", new_population)
 
         # update population
         population = np.array(new_population)
 
-        print("Final ... ", population)
+        print("New Population ... \n", population)
+
+        print(f"\n~~~~~~~~~~~~~~~~~~~~~~~ END - GEN #{gen} ~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
         # check for convergence
         if has_converged(population, fitness_func):
+            print(f"\n!!!!!   CONVERGED -- GEN #{gen}   !!!!!\n")
             break
 
         # check if tolerance criteria is met
         current_best_fitness_score = fitness_scores[fittest_chromosome_idx]
         if abs(prev_best_fitness_score - current_best_fitness_score) <= tolerance:
+            print(f"\n!!!!!   TOLERANCE SATISFIED -- GEN #{gen}   !!!!\n")
             break
         prev_best_fitness_score = current_best_fitness_score
 
@@ -409,9 +415,11 @@ def main():
         output_func=functools.partial(store_cities_for_path, cities=cities, output_file_path="./output.txt"),
     )
 
+    print("\n================   RESULTS   =====================")
     print("Generation: ", n_generation)
     print("fittest_chromosome ... ", fittest_chromosome)
     print("fitness_score ... ", fitness_score)
+    print("==================================================\n")
 
     # Store the final path results
     # Add the start state at the end to complete the TSP

@@ -5,11 +5,29 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Homework 01",
+            "name": "Input 01",
             "type": "python",
             "request": "launch",
             "program": "homework3.py",
             "args": ["./sample/input1.txt"],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Input 02",
+            "type": "python",
+            "request": "launch",
+            "program": "homework3.py",
+            "args": ["./sample/input2.txt"],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Input 03",
+            "type": "python",
+            "request": "launch",
+            "program": "homework3.py",
+            "args": ["./sample/input3.txt"],
             "console": "integratedTerminal",
             "justMyCode": true
         }
