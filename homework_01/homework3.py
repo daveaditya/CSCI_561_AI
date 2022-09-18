@@ -3,8 +3,9 @@ import sys
 import functools
 import random
 from math import ceil
+from pathlib import Path
 from itertools import permutations
-from typing import Callable, List, Tuple
+from typing import Callable, List, Optional, Tuple
 
 import numpy as np
 import numpy.typing as npt
@@ -25,7 +26,7 @@ SelectionFunc = Callable[[Population, FitnessFunc], npt.NDArray]
 CrossoverFunc = Callable[[Chromosome, Chromosome], Tuple[Chromosome, Chromosome]]
 MutationFunc = Callable[[Chromosome], Chromosome]
 SurvivorFunc = Callable[[Population, FitnessFunc], List[int]]
-
+OutputFunc = Callable[[Chromosome], None]
 
 ###########################################################################################################################
 ### Helper Functions
@@ -49,15 +50,22 @@ def read_input(input_file_path: str) -> Tuple[int, List[City]]:
     return city_count, cities
 
 
-def print_cities_for_path(cities: List[City], path: Chromosome) -> None:
-    """Print the list of cities in the order of visit
+def store_cities_for_path(cities: List[City], path: Chromosome, output_file_path: str) -> None:
+    """Store the list of cities in the order of visit
 
     Args:
         cities (List[City]): List of all cities
         path (Chromosome): Path taken to visit all cities. Contains the index into the list of cities
     """
-    for city_idx in path:
-        print(f"{cities[city_idx][0]}{cities[city_idx][1]}{cities[city_idx][2]}")
+    # Create output directory if not exists
+    Path(output_file_path).mkdir(parents=True, exist_ok=True)
+
+    # Save the file
+    with open(output_file_path, "w") as output:
+        for city_idx in path:
+            line = f"{cities[city_idx][0]}{cities[city_idx][1]}{cities[city_idx][2]}"
+            print(line)
+            output.write(line)
 
 
 def calculate_distances(n_cities: int, cities: List[City], distance_func: Callable) -> npt.NDArray[np.float64]:
@@ -78,7 +86,7 @@ def calculate_distances(n_cities: int, cities: List[City], distance_func: Callab
     return distance_matrix
 
 
-def has_converged(population: Population) -> bool:
+def has_converged(population: Population, fitness_func: FitnessFunc) -> bool:
     """Check if all the chromosomes in the population are same or not
 
     Args:
@@ -87,7 +95,12 @@ def has_converged(population: Population) -> bool:
     Returns:
         bool: True if the population has convered, else False
     """
-    return np.array([chromosome == population[0] for chromosome in population]).all()
+    fitness_score: npt.NDArray = np.apply_along_axis(fitness_func, 1, population)
+
+    return (
+        np.all(fitness_score == fitness_score[0])
+        or np.array([chromosome == population[0] for chromosome in population]).all()
+    )
 
 
 ###########################################################################################################################
@@ -283,11 +296,12 @@ def do_evolution(
     survivor_func: SurvivorFunc,
     generation_limit: int,
     tolerance: float,
+    output_func: Optional[OutputFunc] = None
 ) -> Tuple[int, Population, np.float64]:
     # Generate initial population
     population: Population = population_func()
 
-    prev_best_fitness_score = float('inf')
+    prev_best_fitness_score = float("inf")
     for gen in range(generation_limit):
         print("Generation ... #", gen)
 
@@ -347,7 +361,7 @@ def do_evolution(
         print("Final ... ", population)
 
         # check for convergence
-        if has_converged(population):
+        if has_converged(population, fitness_func):
             break
 
         # check if tolerance criteria is met
@@ -355,6 +369,9 @@ def do_evolution(
         if abs(prev_best_fitness_score - current_best_fitness_score) <= tolerance:
             break
         prev_best_fitness_score = current_best_fitness_score
+
+        if output_func:
+            output_func(new_population[fittest_chromosome_idx])
 
     return (gen, new_population[fittest_chromosome_idx], fitness_scores[fittest_chromosome_idx])
 
@@ -386,11 +403,15 @@ def main():
         survivor_func=functools.partial(select_elites, elitism_rate=0.1),
         generation_limit=100,
         tolerance=1e-5,
+        output_func=functools.partial(store_cities_for_path, cities=cities, output_file_path="./output.txt")
     )
 
     print("Generation: ", n_generation)
     print("fittest_chromosome ... ", fittest_chromosome)
     print("fitness_score ... ", fitness_score)
+
+    # Store the final path results
+    store_cities_for_path(cities, fittest_chromosome, "./output.txt")
 
 
 if __name__ == "__main__":
