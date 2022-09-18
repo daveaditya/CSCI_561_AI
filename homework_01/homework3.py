@@ -238,6 +238,27 @@ def roulette_wheel_based_selection(population: Population, fitness_func: Fitness
     return tuple(parents)
 
 
+def tournament_selection(population: Population, fitness_func: FitnessFunc, tournament_size: int) -> List[Chromosome]:
+    """Picks `tournament_size` number of chromosomes from the population and returns the best from that batch.
+
+    Args:
+        population (Population): A collection of Chromosomes
+        fitness_func (FitnessFunc): The fitness score calculating function
+        tournament_size (int): The number of Chromosomes to consider in a tournament
+
+    Returns:
+       List[Chromosome]: The wining Chromosomes i.e. two parents
+    """
+    winners = list()
+    for _ in range(2):
+        tournament_contestants_idxs = np.random.choice(range(population.shape[0]), size=tournament_size)
+        tournament_contestants = population[tournament_contestants_idxs]
+        contestant_fitness_scores = np.apply_along_axis(fitness_func, 1, tournament_contestants)
+        winners.append(tournament_contestants[np.argmin(contestant_fitness_scores)])
+    return winners
+
+
+
 ###########################################################################################################################
 ### Crossover Methods
 ###########################################################################################################################
@@ -446,7 +467,8 @@ def main():
     n_generation, fittest_chromosome, fitness_score = do_evolution(
         population_func=functools.partial(create_initial_population, size=1024, n_allele=n_cities, kind="random"),
         fitness_func=functools.partial(calculate_fitness_score, distance_matrix=distance_matrix),
-        selection_func=roulette_wheel_based_selection,
+        # selection_func=roulette_wheel_based_selection,
+        selection_func=functools.partial(tournament_selection, tournament_size=16),
         crossover_func=functools.partial(ordered_crossover, crossover_probability=0.90),
         mutation_func=functools.partial(reverse_sequence_mutation, mutation_probability=0.15),
         survivor_func=functools.partial(select_elites, elitism_rate=0.1),
@@ -460,7 +482,7 @@ def main():
     print("\n================   RESULTS   =====================")
     print("Generation: ", n_generation)
     print("Fitness Score: ", fitness_score)
-    print("Fittest Chromosome: ", fittest_chromosome)
+    # print("Fittest Chromosome: ", fittest_chromosome)
     print("==================================================\n")
 
     # Store the final path results
