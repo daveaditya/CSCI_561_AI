@@ -177,7 +177,7 @@ def create_initial_population(size: int, n_allele: int, kind: str, fitness_func:
             random_chromosomes.append(rng.choice(n_allele, size=n_allele, replace=False))
         random_chromosomes = np.array(random_chromosomes)
         fitness_scores = np.apply_along_axis(fitness_func, 1, random_chromosomes)
-        sorted_fitness_score_idxs = fitness_scores.argsort()[: ceil(size * top_k)]
+        sorted_fitness_score_idxs = fitness_scores.argsort()[: ceil(size * explore_ratio * top_k)]
         return random_chromosomes[sorted_fitness_score_idxs]
 
     def generate_from_cauchy_distribution(size: int, n_allele: int) -> npt.NDArray:
