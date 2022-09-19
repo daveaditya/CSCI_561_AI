@@ -5,7 +5,7 @@ import random
 from math import ceil, floor
 from pathlib import Path
 from itertools import permutations
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, Generator, List, Optional, Tuple
 from warnings import warn
 
 import numpy as np
@@ -250,11 +250,11 @@ def tournament_selection(population: Population, fitness_func: FitnessFunc, tour
     Returns:
        List[Chromosome]: The wining Chromosomes i.e. two parents
     """
-    winners = list()
+    winners: List[Chromosome] = list()
     for _ in range(2):
-        tournament_contestants_idxs = np.random.choice(range(population.shape[0]), size=tournament_size)
-        tournament_contestants = population[tournament_contestants_idxs]
-        contestant_fitness_scores = np.apply_along_axis(fitness_func, 1, tournament_contestants)
+        tournament_contestants_idxs: npt.NDArray = np.random.choice(range(population.shape[0]), size=tournament_size)
+        tournament_contestants: Population = population[tournament_contestants_idxs]
+        contestant_fitness_scores: npt.NDArray[np.float64] = np.apply_along_axis(fitness_func, 1, tournament_contestants)
         winners.append(tournament_contestants[np.argmin(contestant_fitness_scores)])
     return winners
 
@@ -275,7 +275,7 @@ def ordered_crossover(
         Tuple[Chromosome, Chromosome]: child after performing crossover
     """
     # do mutation based on mutation probability
-    do_crossover = np.random.rand()
+    do_crossover: np.float64 = np.random.rand()
     if do_crossover > crossover_probability:
         return parent_1, parent_2
 
@@ -308,6 +308,39 @@ def ordered_crossover(
     return parent_1, parent_2
 
 
+def two_point_crossover(parent_1: Chromosome, parent_2: Chromosome, n_allele: int, crossover_probability: float) -> List[Chromosome]:
+     # do mutation based on mutation probability
+    do_crossover: np.float64 = np.random.rand()
+    if do_crossover > crossover_probability:
+        return parent_1, parent_2
+
+    size: int = parent_1.shape[0]
+
+    children: List = list()
+
+    for _ in range(2):
+
+        start_idx, end_idx = random.sample(range(0, size), 2)
+        if start_idx > end_idx:
+            start_idx, end_idx = end_idx, start_idx
+
+        child: npt.NDArray = np.zeros_like(parent_1)
+        child[start_idx:end_idx] =  parent_1[start_idx:end_idx]
+        
+        available_idxs: npt.NDArray = np.arange(n_allele)
+        available_idxs: List[int] = np.delete(available_idxs, np.arange(start_idx, end_idx)).tolist()
+
+        for allele in parent_2:
+            if 0 not in child:
+                break
+            if allele not in child:
+                child[available_idxs.pop(0)] = allele
+
+        children.append(child)
+
+    return children
+
+
 ###########################################################################################################################
 ### Mutation Methods
 ###########################################################################################################################
@@ -332,15 +365,15 @@ def reverse_sequence_mutation(chromosome: Chromosome, mutation_probability: floa
 
 def swap_mutation(chromosome: Chromosome, mutation_probability: float) -> Chromosome:
     # do mutation based on mutation probability
-    do_mutate = np.random.rand()
+    do_mutate: np.float64 = np.random.rand()
     if do_mutate > mutation_probability:
         return chromosome
 
-    size = chromosome.shape[0]
+    size: int = chromosome.shape[0]
     a, b = random.sample(range(1, size), 2)
 
     # create a copy and reverse the sub-sequence
-    mutated_chromosome = chromosome.copy()
+    mutated_chromosome: Chromosome = chromosome.copy()
     mutated_chromosome[a], mutated_chromosome[b] = mutated_chromosome[b], mutated_chromosome[a]
 
     return mutated_chromosome
@@ -348,19 +381,19 @@ def swap_mutation(chromosome: Chromosome, mutation_probability: float) -> Chromo
 
 def scramble_mutation(chromosome: Chromosome, mutation_probability: float) -> Chromosome:
     # do mutation based on mutation probability
-    do_mutate = np.random.rand()
+    do_mutate: np.float64 = np.random.rand()
     if do_mutate > mutation_probability:
         return chromosome
 
-    size = chromosome.shape[0]
-    org_sampled_idxs = random.sample(range(1, size), floor(size / 2))
+    size: Chromosome = chromosome.shape[0]
+    org_sampled_idxs: npt.NDArray[np.int32] = random.sample(range(1, size), floor(size / 2))
 
-    rng = np.random.default_rng(seed=42)
-    randomized_sampled_idx = org_sampled_idxs.copy()
+    rng: Generator = np.random.default_rng(seed=42)
+    randomized_sampled_idx: npt.NDArray[np.int32] = org_sampled_idxs.copy()
     rng.shuffle(randomized_sampled_idx)
 
     # create a copy and reverse the sub-sequence
-    mutated_chromosome = chromosome.copy()
+    mutated_chromosome: Chromosome = chromosome.copy()
     mutated_chromosome[org_sampled_idxs] = mutated_chromosome[randomized_sampled_idx]
 
     return mutated_chromosome
@@ -475,7 +508,7 @@ def do_evolution(
             print("\nFitness Score: ", fitness_scores[fittest_chromosome_idx])
             output_func(path=fittest_chromosome)
 
-        if temperature < 500.0:
+        if temperature < 1000.0:
             print(f"\n!!!!!   TEMPERATURE TOO LOW -- GEN #{gen}   !!!!!\n")
             break
         temperature = cooldown_func(temperature)
@@ -504,19 +537,20 @@ def main():
     # print("distance matrix .. ", distance_matrix)
 
     n_generation, fittest_chromosome, fitness_score = do_evolution(
-        population_func=functools.partial(create_initial_population, size=1024, n_allele=n_cities, kind="random"),
+        population_func=functools.partial(create_initial_population, size=4096, n_allele=n_cities, kind="random"),
         fitness_func=functools.partial(calculate_fitness_score, distance_matrix=distance_matrix),
         # selection_func=roulette_wheel_based_selection,
         selection_func=functools.partial(tournament_selection, tournament_size=128),
-        crossover_func=functools.partial(ordered_crossover, crossover_probability=0.90),
+        # crossover_func=functools.partial(ordered_crossover, crossover_probability=0.90),
+        crossover_func=functools.partial(two_point_crossover, n_allele=n_cities, crossover_probability=0.90),
         # mutation_func=functools.partial(reverse_sequence_mutation, mutation_probability=0.30),
-        mutation_func=functools.partial(swap_mutation, mutation_probability=0.35),
+        mutation_func=functools.partial(swap_mutation, mutation_probability=0.60),
         # mutation_func=functools.partial(scramble_mutation, mutation_probability=0.25),
         survivor_func=functools.partial(select_elites, elitism_rate=0.2),
         generation_limit=10000,
         tolerance=1e-12,
-        population_decay_rate=0.60,
-        cooldown_func=functools.partial(cooldown, cool_down_date=0.88),
+        population_decay_rate=0.525,
+        cooldown_func=functools.partial(cooldown, cool_down_date=0.90),
         output_func=functools.partial(store_cities_for_path, cities=cities, output_file_path="./output.txt"),
     )
 
