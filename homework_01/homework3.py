@@ -64,12 +64,12 @@ def store_cities_for_path(cities: List[City], path: Chromosome, output_file_path
 
     # Save the file
     with open(output_file_path, "w") as output:
-        print("============= FINAL OUTPUT ==============")
+        # print("============= FINAL OUTPUT ==============")
         for city_idx in path:
             line = f"{cities[city_idx][0]} {cities[city_idx][1]} {cities[city_idx][2]}\n"
-            print(line, end="")
+            # print(line, end="")
             output.write(line)
-        print("=========================================")
+        # print("=========================================")
 
 
 def calculate_distances(n_cities: int, cities: List[City], distance_func: Callable) -> npt.NDArray[np.float64]:
@@ -109,6 +109,7 @@ def has_converged(population: Population, fitness_func: FitnessFunc) -> bool:
 
 def cooldown(temperature: float, cool_down_date: float):
     return temperature * cool_down_date
+
 
 ###########################################################################################################################
 ### Fitness Score Calculator
@@ -448,8 +449,9 @@ def do_evolution(
         population = np.array(new_population)
         # print("New Population: \n", population)
 
-        new_population_fitness_scores = np.apply_along_axis(fitness_func, 1, population)
-        fittest_chromosome_idx = new_population_fitness_scores.argmin()
+        # Recalculate fitness scores
+        fitness_scores = np.apply_along_axis(fitness_func, 1, population)
+        fittest_chromosome_idx = fitness_scores.argmin()
 
         print(f"\n~~~~~~~~~~~~~~~~~~~~~ END - GEN #{gen} ~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
@@ -459,7 +461,7 @@ def do_evolution(
             break
 
         # check if tolerance criteria is met
-        current_best_fitness_score = new_population_fitness_scores[fittest_chromosome_idx]
+        current_best_fitness_score = fitness_scores[fittest_chromosome_idx]
         if abs(prev_best_fitness_score - current_best_fitness_score) <= tolerance:
             print(f"\n!!!!!   TOLERANCE SATISFIED -- GEN #{gen}   !!!!\n")
             break
@@ -473,12 +475,14 @@ def do_evolution(
             print("\nFitness Score: ", fitness_scores[fittest_chromosome_idx])
             output_func(path=fittest_chromosome)
 
-        if temperature < 1000.0:
+        if temperature < 500.0:
             print(f"\n!!!!!   TEMPERATURE TOO LOW -- GEN #{gen}   !!!!!\n")
             break
         temperature = cooldown_func(temperature)
 
-    return (gen, new_population[fittest_chromosome_idx], fitness_scores[fittest_chromosome_idx])
+    
+
+    return (gen, population[fittest_chromosome_idx], fitness_scores[fittest_chromosome_idx])
 
 
 ###########################################################################################################################
@@ -505,14 +509,14 @@ def main():
         # selection_func=roulette_wheel_based_selection,
         selection_func=functools.partial(tournament_selection, tournament_size=128),
         crossover_func=functools.partial(ordered_crossover, crossover_probability=0.90),
-        # mutation_func=functools.partial(reverse_sequence_mutation, mutation_probability=0.15),
-        # mutation_func=functools.partial(swap_mutation, mutation_probability=0.15),
-        mutation_func=functools.partial(scramble_mutation, mutation_probability=0.15),
-        survivor_func=functools.partial(select_elites, elitism_rate=0.1),
+        # mutation_func=functools.partial(reverse_sequence_mutation, mutation_probability=0.30),
+        mutation_func=functools.partial(swap_mutation, mutation_probability=0.35),
+        # mutation_func=functools.partial(scramble_mutation, mutation_probability=0.25),
+        survivor_func=functools.partial(select_elites, elitism_rate=0.2),
         generation_limit=10000,
         tolerance=1e-12,
-        population_decay_rate=0.50,
-        cooldown_func = functools.partial(cooldown, cool_down_date=0.95),
+        population_decay_rate=0.60,
+        cooldown_func=functools.partial(cooldown, cool_down_date=0.88),
         output_func=functools.partial(store_cities_for_path, cities=cities, output_file_path="./output.txt"),
     )
 
