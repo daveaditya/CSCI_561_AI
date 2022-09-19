@@ -139,7 +139,7 @@ def calculate_fitness_score(chromosome: Chromosome, distance_matrix: npt.NDArray
 ###########################################################################################################################
 ### Initial Population
 ###########################################################################################################################
-def create_initial_population(size: int, n_allele: int, kind: str) -> Population:
+def create_initial_population(size: int, n_allele: int, kind: str, fitness_func: FitnessFunc) -> Population:
     """Creates paths randomly or based on some heuristics.
 
     Args:
@@ -170,6 +170,16 @@ def create_initial_population(size: int, n_allele: int, kind: str) -> Population
             random_chromosomes.append(rng.choice(n_allele, size=n_allele, replace=False))
         return np.array(random_chromosomes)
 
+    def generate_randomly_top(size: int, n_allele: int, fitness_func: FitnessFunc):
+        random_chromosomes = list()
+        rng = np.random.default_rng(seed=42)
+        for _ in range(ceil(size * 1.5)):
+            random_chromosomes.append(rng.choice(n_allele, size=n_allele, replace=False))
+        random_chromosomes = np.array(random_chromosomes)
+        fitness_scores = np.apply_along_axis(fitness_func, 1, random_chromosomes)
+        sorted_fitness_score_idxs = fitness_scores.argsort()[:size]
+        return random_chromosomes[sorted_fitness_score_idxs]
+
     def generate_from_cauchy_distribution(size: int, n_allele: int) -> npt.NDArray:
         random_chromosomes = list()
         rng = np.random.default_rng(seed=42)
@@ -191,7 +201,9 @@ def create_initial_population(size: int, n_allele: int, kind: str) -> Population
     if kind == "permutation":
         return generate_from_permutation(size, n_allele)
     elif kind == "random":
-        return generate_randomly(size, n_allele)
+        return generate_randomly(size, n_allele, fitness_func)
+    elif kind == "random_top":
+        return generate_randomly_top(size, n_allele, fitness_func)
     elif kind == "cauchy":
         return generate_from_cauchy_distribution(size, n_allele)
     else:
@@ -252,18 +264,12 @@ def tournament_selection(population: Population, fitness_func: FitnessFunc, tour
     """
     winners: List[Chromosome] = list()
 
-    while len(winners) != 2:
+    for _ in range(2):
 
         tournament_contestants_idxs: npt.NDArray = np.random.choice(range(population.shape[0]), size=tournament_size)
         tournament_contestants: Population = population[tournament_contestants_idxs]
         contestant_fitness_scores: npt.NDArray[np.float64] = np.apply_along_axis(fitness_func, 1, tournament_contestants)
         winners.append(tournament_contestants[np.argmin(contestant_fitness_scores)])
-
-        if len(winners) == 2:
-            if all(winners[0] == winners[1]):
-                winners.pop(0)
-            else:
-                break
 
     return winners
 
@@ -333,19 +339,23 @@ def two_point_crossover(parent_1: Chromosome, parent_2: Chromosome, n_allele: in
         if start_idx > end_idx:
             start_idx, end_idx = end_idx, start_idx
 
-        child: npt.NDArray = np.zeros_like(parent_1)
-        child[start_idx:end_idx] =  parent_1[start_idx:end_idx]
-        
         available_idxs: npt.NDArray = np.arange(n_allele)
         available_idxs: List[int] = np.delete(available_idxs, np.arange(start_idx, end_idx)).tolist()
 
+        child: npt.NDArray = np.full(shape=parent_1.shape, fill_value=-1)
+        child[start_idx:end_idx] =  parent_1[start_idx:end_idx]
+
         for allele in parent_2:
-            if 0 not in child:
+            if -1 not in child:
                 break
             if allele not in child:
                 child[available_idxs.pop(0)] = allele
 
         children.append(child)
+
+        # if len(children) == 2:
+        #     if all(children[0] == children[1]):
+        #         children.pop()
 
     return children
 
@@ -437,6 +447,7 @@ def do_evolution(
     survivor_func: SurvivorFunc,
     generation_limit: int,
     tolerance: float,
+    tolerance_wait:int,
     population_decay_rate: float,
     cooldown_func: CooldownFunc,
     output_func: Optional[OutputFunc] = None,
@@ -445,9 +456,8 @@ def do_evolution(
     temperature = 10000.0
 
     # Generate initial population
-    population: Population = population_func()
-
-    prev_best_fitness_score = float("inf")
+    population: Population = population_func(fitness_func = fitness_func)
+    tolerance_wait_counter: int = 0
 
     for gen in range(generation_limit):
         print(f"\n********************* START - GEN #{gen} *************************")
@@ -463,6 +473,10 @@ def do_evolution(
 
         # Calculate fitness score for all the chromosomes
         fitness_scores: npt.NDArray = np.apply_along_axis(fitness_func, 1, population)
+
+        # set previous best fitness score
+        fitness_scores = np.apply_along_axis(fitness_func, 1, population)
+        prev_best_fitness_score = fitness_scores.min()
 
         # Select survivors
         survivor_offset, survivor_idxs = survivor_func(fitness_scores)
@@ -505,8 +519,10 @@ def do_evolution(
         # check if tolerance criteria is met
         current_best_fitness_score = fitness_scores[fittest_chromosome_idx]
         if abs(prev_best_fitness_score - current_best_fitness_score) <= tolerance:
-            print(f"\n!!!!!   TOLERANCE SATISFIED -- GEN #{gen}   !!!!\n")
-            break
+            tolerance_wait_counter += 1
+            if tolerance_wait_counter == tolerance_wait:
+                print(f"\n!!!!!   TOLERANCE SATISFIED -- GEN #{gen}   !!!!\n")
+                break
         prev_best_fitness_score = current_best_fitness_score
 
         if output_func:
@@ -521,8 +537,6 @@ def do_evolution(
             print(f"\n!!!!!   TEMPERATURE TOO LOW -- GEN #{gen}   !!!!!\n")
             break
         temperature = cooldown_func(temperature)
-
-    
 
     return (gen, population[fittest_chromosome_idx], fitness_scores[fittest_chromosome_idx])
 
@@ -546,19 +560,21 @@ def main():
     # print("distance matrix .. ", distance_matrix)
 
     n_generation, fittest_chromosome, fitness_score = do_evolution(
-        population_func=functools.partial(create_initial_population, size=4096, n_allele=n_cities, kind="random"),
+        # population_func=functools.partial(create_initial_population, size=3000, n_allele=n_cities, kind="random"),
+        population_func=functools.partial(create_initial_population, size=4096, n_allele=n_cities, kind="random_top"),
         fitness_func=functools.partial(calculate_fitness_score, distance_matrix=distance_matrix),
         # selection_func=roulette_wheel_based_selection,
         selection_func=functools.partial(tournament_selection, tournament_size=128),
         # crossover_func=functools.partial(ordered_crossover, crossover_probability=0.90),
         crossover_func=functools.partial(two_point_crossover, n_allele=n_cities, crossover_probability=0.90),
         # mutation_func=functools.partial(reverse_sequence_mutation, mutation_probability=0.30),
-        mutation_func=functools.partial(swap_mutation, mutation_probability=0.60),
+        mutation_func=functools.partial(swap_mutation, mutation_probability=0.25),
         # mutation_func=functools.partial(scramble_mutation, mutation_probability=0.25),
         survivor_func=functools.partial(select_elites, elitism_rate=0.2),
         generation_limit=10000,
         tolerance=1e-12,
-        population_decay_rate=0.525,
+        tolerance_wait=8,
+        population_decay_rate=0.4975,
         cooldown_func=functools.partial(cooldown, cool_down_date=0.90),
         output_func=functools.partial(store_cities_for_path, cities=cities, output_file_path="./output.txt"),
     )
