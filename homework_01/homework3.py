@@ -251,11 +251,20 @@ def tournament_selection(population: Population, fitness_func: FitnessFunc, tour
        List[Chromosome]: The wining Chromosomes i.e. two parents
     """
     winners: List[Chromosome] = list()
-    for _ in range(2):
+
+    while len(winners) != 2:
+
         tournament_contestants_idxs: npt.NDArray = np.random.choice(range(population.shape[0]), size=tournament_size)
         tournament_contestants: Population = population[tournament_contestants_idxs]
         contestant_fitness_scores: npt.NDArray[np.float64] = np.apply_along_axis(fitness_func, 1, tournament_contestants)
         winners.append(tournament_contestants[np.argmin(contestant_fitness_scores)])
+
+        if len(winners) == 2:
+            if all(winners[0] == winners[1]):
+                winners.pop(0)
+            else:
+                break
+
     return winners
 
 
