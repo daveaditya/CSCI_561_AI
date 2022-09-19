@@ -2,7 +2,7 @@
 import sys
 import functools
 import random
-from math import ceil
+from math import ceil, floor
 from pathlib import Path
 from itertools import permutations
 from typing import Callable, List, Optional, Tuple
@@ -329,6 +329,42 @@ def reverse_sequence_mutation(chromosome: Chromosome, mutation_probability: floa
     return mutated_chromosome
 
 
+def swap_mutation(chromosome: Chromosome, mutation_probability: float) -> Chromosome:
+    # do mutation based on mutation probability
+    do_mutate = np.random.rand()
+    if do_mutate > mutation_probability:
+        return chromosome
+
+    size = chromosome.shape[0]
+    a, b = random.sample(range(1, size), 2)
+
+    # create a copy and reverse the sub-sequence
+    mutated_chromosome = chromosome.copy()
+    mutated_chromosome[a], mutated_chromosome[b] = mutated_chromosome[b], mutated_chromosome[a]
+
+    return mutated_chromosome
+
+
+def scramble_mutation(chromosome: Chromosome, mutation_probability: float) -> Chromosome:
+    # do mutation based on mutation probability
+    do_mutate = np.random.rand()
+    if do_mutate > mutation_probability:
+        return chromosome
+
+    size = chromosome.shape[0]
+    org_sampled_idxs = random.sample(range(1, size), floor(size / 2))
+
+    rng = np.random.default_rng(seed=42)
+    randomized_sampled_idx = org_sampled_idxs.copy()
+    rng.shuffle(randomized_sampled_idx)
+
+    # create a copy and reverse the sub-sequence
+    mutated_chromosome = chromosome.copy()
+    mutated_chromosome[org_sampled_idxs] = mutated_chromosome[randomized_sampled_idx]
+
+    return mutated_chromosome
+
+
 ###########################################################################################################################
 ### Survivor Selection Methods
 ###########################################################################################################################
@@ -467,13 +503,15 @@ def main():
         population_func=functools.partial(create_initial_population, size=1024, n_allele=n_cities, kind="random"),
         fitness_func=functools.partial(calculate_fitness_score, distance_matrix=distance_matrix),
         # selection_func=roulette_wheel_based_selection,
-        selection_func=functools.partial(tournament_selection, tournament_size=16),
+        selection_func=functools.partial(tournament_selection, tournament_size=128),
         crossover_func=functools.partial(ordered_crossover, crossover_probability=0.90),
-        mutation_func=functools.partial(reverse_sequence_mutation, mutation_probability=0.15),
+        # mutation_func=functools.partial(reverse_sequence_mutation, mutation_probability=0.15),
+        # mutation_func=functools.partial(swap_mutation, mutation_probability=0.15),
+        mutation_func=functools.partial(scramble_mutation, mutation_probability=0.15),
         survivor_func=functools.partial(select_elites, elitism_rate=0.1),
         generation_limit=10000,
-        tolerance=1e-10,
-        population_decay_rate=0.45,
+        tolerance=1e-12,
+        population_decay_rate=0.50,
         cooldown_func = functools.partial(cooldown, cool_down_date=0.95),
         output_func=functools.partial(store_cities_for_path, cities=cities, output_file_path="./output.txt"),
     )
