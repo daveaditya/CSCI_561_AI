@@ -563,11 +563,11 @@ def main():
     distance_matrix = calculate_distances(n_cities, cities, euclidean)
     # print("distance matrix .. ", distance_matrix)
 
-    population_size = 4684
-    cool_down_rate = 0.9254
+    population_size = 5120
+    cool_down_rate = 0.85254
     crossover_probability = 0.92525
-    mutability_probability = 0.822725
-    top_k = 0.55
+    mutability_probability = 0.902725
+    top_k = 0.45
     if n_cities > 99:
         population_size = 2800
         cool_down_rate = 0.88475
@@ -576,9 +576,9 @@ def main():
         top_k = 0.46725
         
     n_generation, fittest_chromosome, fitness_score = do_evolution(
-        # population_func=functools.partial(create_initial_population, size=3000, n_allele=n_cities, kind="random"),
+        # population_func=functools.partial(create_initial_population, size=population_size, n_allele=n_cities, kind="random"),
         population_func=functools.partial(
-            create_initial_population, size=population_size, n_allele=n_cities, kind="random_top", explore_ratio=1.58525, top_k=top_k
+           create_initial_population, size=population_size, n_allele=n_cities, kind="random_top", explore_ratio=1.58525, top_k=top_k
         ),
         fitness_func=functools.partial(calculate_fitness_score, distance_matrix=distance_matrix),
         # selection_func=roulette_wheel_based_selection,
