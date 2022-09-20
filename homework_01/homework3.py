@@ -563,25 +563,37 @@ def main():
     distance_matrix = calculate_distances(n_cities, cities, euclidean)
     # print("distance matrix .. ", distance_matrix)
 
+    population_size = 4684
+    cool_down_rate = 0.9254
+    crossover_probability = 0.92525
+    mutability_probability = 0.822725
+    top_k = 0.55
+    if n_cities > 99:
+        population_size = 3000
+        cool_down_rate = 0.9875
+        crossover_probability = 0.80
+        mutability_probability = 0.86550
+        top_k = 0.5225
+        
     n_generation, fittest_chromosome, fitness_score = do_evolution(
         # population_func=functools.partial(create_initial_population, size=3000, n_allele=n_cities, kind="random"),
         population_func=functools.partial(
-            create_initial_population, size=3000, n_allele=n_cities, kind="random_top", explore_ratio=2.0, top_k=0.75
+            create_initial_population, size=population_size, n_allele=n_cities, kind="random_top", explore_ratio=1.53525, top_k=top_k
         ),
         fitness_func=functools.partial(calculate_fitness_score, distance_matrix=distance_matrix),
         # selection_func=roulette_wheel_based_selection,
-        selection_func=functools.partial(tournament_selection, tournament_size=128),
-        # crossover_func=functools.partial(ordered_crossover, crossover_probability=0.90),
-        crossover_func=functools.partial(two_point_crossover, n_allele=n_cities, crossover_probability=0.90),
+        selection_func=functools.partial(tournament_selection, tournament_size=152),
+        # crossover_func=functools.partial(ordered_crossover, crossover_probability=0.80),
+        crossover_func=functools.partial(two_point_crossover, n_allele=n_cities, crossover_probability=crossover_probability),
         # mutation_func=functools.partial(reverse_sequence_mutation, mutation_probability=0.30),
-        mutation_func=functools.partial(swap_mutation, mutation_probability=0.25),
+        mutation_func=functools.partial(swap_mutation, mutation_probability=mutability_probability),
         # mutation_func=functools.partial(scramble_mutation, mutation_probability=0.25),
-        survivor_func=functools.partial(select_elites, elitism_rate=0.2),
+        survivor_func=functools.partial(select_elites, elitism_rate=0.18725),
         generation_limit=10000,
-        tolerance=1e-12,
-        tolerance_wait=8,
-        population_decay_rate=0.50,
-        cooldown_func=functools.partial(cooldown, cool_down_date=0.90),
+        tolerance=1e-6,
+        tolerance_wait=3,
+        population_decay_rate=0.5015,
+        cooldown_func=functools.partial(cooldown, cool_down_date=cool_down_rate),
         output_func=functools.partial(store_cities_for_path, cities=cities, output_file_path="./output.txt"),
     )
 
