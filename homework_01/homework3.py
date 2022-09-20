@@ -569,16 +569,16 @@ def main():
     mutability_probability = 0.822725
     top_k = 0.55
     if n_cities > 99:
-        population_size = 3000
-        cool_down_rate = 0.9875
+        population_size = 2800
+        cool_down_rate = 0.88475
         crossover_probability = 0.80
         mutability_probability = 0.86550
-        top_k = 0.5225
+        top_k = 0.46725
         
     n_generation, fittest_chromosome, fitness_score = do_evolution(
         # population_func=functools.partial(create_initial_population, size=3000, n_allele=n_cities, kind="random"),
         population_func=functools.partial(
-            create_initial_population, size=population_size, n_allele=n_cities, kind="random_top", explore_ratio=1.53525, top_k=top_k
+            create_initial_population, size=population_size, n_allele=n_cities, kind="random_top", explore_ratio=1.58525, top_k=top_k
         ),
         fitness_func=functools.partial(calculate_fitness_score, distance_matrix=distance_matrix),
         # selection_func=roulette_wheel_based_selection,
