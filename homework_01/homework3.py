@@ -17,6 +17,25 @@ rng = np.random.default_rng(seed=42)
 
 
 ###########################################################################################################################
+### Type Hinting
+###########################################################################################################################
+City = Tuple[int, int, int]
+
+Chromosome = npt.NDArray[np.int32]  # represents one solution i.e. a single path in TSP
+Population = npt.NDArray[np.int32]  # represents all the paths
+PopulationFunc = Callable[[], Population]  # A function that generates the population
+FitnessFunc = Callable[
+    [Chromosome, npt.NDArray[np.float64]], np.float64
+]  # A function that takes a chromosome and distance matrix to give fitness score of the chromosome
+SelectionFunc = Callable[[Population, FitnessFunc], npt.NDArray]
+CrossoverFunc = Callable[[Chromosome, Chromosome], Tuple[Chromosome, Chromosome]]
+MutationFunc = Callable[[Chromosome], Chromosome]
+SurvivorFunc = Callable[[Population, FitnessFunc], List[int]]
+CooldownFunc = Callable[[float, float], float]
+OutputFunc = Callable[[Chromosome], None]
+
+
+###########################################################################################################################
 ### Program Configuration
 ###########################################################################################################################
 # Initial Population Controls
@@ -36,24 +55,6 @@ POPULATION_DECAY_RATE = 0.5215
 COOL_DOWN_RATE = 0.92475
 TOLERANCE = 1e-8
 N_WAIT_FOR_TOLERANGE = 4
-
-###########################################################################################################################
-### Type Hinting
-###########################################################################################################################
-City = Tuple[int, int, int]
-
-Chromosome = npt.NDArray[np.int32]  # represents one solution i.e. a single path in TSP
-Population = npt.NDArray[np.int32]  # represents all the paths
-PopulationFunc = Callable[[], Population]  # A function that generates the population
-FitnessFunc = Callable[
-    [Chromosome, npt.NDArray[np.float64]], np.float64
-]  # A function that takes a chromosome and distance matrix to give fitness score of the chromosome
-SelectionFunc = Callable[[Population, FitnessFunc], npt.NDArray]
-CrossoverFunc = Callable[[Chromosome, Chromosome], Tuple[Chromosome, Chromosome]]
-MutationFunc = Callable[[Chromosome], Chromosome]
-SurvivorFunc = Callable[[Population, FitnessFunc], List[int]]
-CooldownFunc = Callable[[float, float], float]
-OutputFunc = Callable[[Chromosome], None]
 
 
 ###########################################################################################################################
