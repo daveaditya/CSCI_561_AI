@@ -40,19 +40,19 @@ OutputFunc = Callable[[Chromosome], None]
 ###########################################################################################################################
 # Initial Population Controls
 INITIAL_POPULATION_SIZE = 8192
-EXPLORATION_RATE = 1.6525
-SELECT_TOP_K = 0.80
+EXPLORATION_RATE = 1.70725
+SELECT_TOP_K = 0.70
 
 # Selection, Crossover, Mutability, and Survivor Selection Controls
-TOURNAMENT_SIZE = 256
-CROSSOVER_PROBABILITY = 0.75
-MUTABILITY_PROBABILITY = 0.30
-ELITISM_RATE = 0.21725
+TOURNAMENT_SIZE = 128
+CROSSOVER_PROBABILITY = 0.8258
+MUTABILITY_PROBABILITY = 0.5275215
+ELITISM_RATE = 0.14275
 
 # Covergence Controls
 N_GENERATIONS = 10000
-POPULATION_DECAY_RATE = 0.5215
-COOL_DOWN_RATE = 0.92475
+POPULATION_DECAY_RATE = 0.5125
+COOL_DOWN_RATE = 0.9055475
 TOLERANCE = 1e-8
 N_WAIT_FOR_TOLERANGE = 4
 
@@ -210,10 +210,24 @@ def create_initial_population(size: int, n_allele: int, kind: str, fitness_func:
         sorted_fitness_score_idxs = fitness_scores.argsort()[: ceil(size * exploration_rate * select_top_k)]
         return random_chromosomes[sorted_fitness_score_idxs]
 
+    def generate_randomly_topped(size: int, n_allele: int, fitness_func: FitnessFunc, exploration_rate: float, select_top_k: float):
+        result = list()
+        random_chromosomes = list()
+        for _ in range(ceil(size * exploration_rate)):
+            random_chromosomes.append(rng.choice(n_allele, size=n_allele, replace=False))
+        random_chromosomes = np.array(random_chromosomes)
+
+        fitness_scores: npt.NDArray = np.empty(random_chromosomes.shape[0])
+        for idx, chromosome in enumerate(random_chromosomes):
+            fitness_scores[idx] = fitness_func(chromosome)
+
+        sorted_fitness_score_idxs = fitness_scores.argsort()[: ceil(size * exploration_rate * select_top_k)]
+        return np.array()
+
     if kind == "permutation":
         return generate_from_permutation(size, n_allele)
     elif kind == "random":
-        return generate_randomly(size, n_allele, fitness_func)
+        return generate_randomly(size, n_allele)
     elif kind == "random_top":
         return generate_randomly_top(size, n_allele, fitness_func, kwargs["exploration_rate"], kwargs["select_top_k"])
     else:
@@ -652,7 +666,7 @@ def main():
 
     # run the evoluation algorithm with provided configuration
     n_generation, fittest_chromosome, fitness_score = do_evolution(
-        # population_func=functools.partial(create_initial_population, size=population_size, n_allele=n_cities, kind="random"),
+        # population_func=functools.partial(create_initial_population, size=INITIAL_POPULATION_SIZE, n_allele=n_cities, kind="random"),
         population_func=functools.partial(
             create_initial_population,
             size=INITIAL_POPULATION_SIZE,
