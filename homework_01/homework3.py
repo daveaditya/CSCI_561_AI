@@ -232,7 +232,6 @@ def roulette_wheel_based_selection(population: Population, fitness_func: Fitness
     Returns:
         npt.NDArray: a selected chromosome, ready to mate!
     """
-    # fitness_scores: npt.NDArray[np.float64] = np.apply_along_axis(fitness_func, 1, population)
     fitness_scores: npt.NDArray = np.empty(population.shape[0])
     for idx, chromosome in enumerate(population):
         fitness_scores[idx] = fitness_func(chromosome)
