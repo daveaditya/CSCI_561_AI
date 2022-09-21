@@ -12,6 +12,31 @@ import numpy as np
 import numpy.typing as npt
 from scipy.spatial.distance import euclidean
 
+np.random.seed(42)
+rng = np.random.default_rng(seed=42)
+
+
+###########################################################################################################################
+### Program Configuration
+###########################################################################################################################
+# Initial Population Controls
+INITIAL_POPULATION_SIZE = 8192
+EXPLORATION_RATE = 1.6525
+SELECT_TOP_K = 0.80
+
+# Selection, Crossover, Mutability, and Survivor Selection Controls
+TOURNAMENT_SIZE = 256
+CROSSOVER_PROBABILITY = 0.75
+MUTABILITY_PROBABILITY = 0.30
+ELITISM_RATE = 0.21725
+
+# Covergence Controls
+N_GENERATIONS = 10000
+POPULATION_DECAY_RATE = 0.5215
+COOL_DOWN_RATE = 0.92475
+TOLERANCE = 1e-8
+N_WAIT_FOR_TOLERANGE = 4
+
 ###########################################################################################################################
 ### Type Hinting
 ###########################################################################################################################
@@ -29,6 +54,7 @@ MutationFunc = Callable[[Chromosome], Chromosome]
 SurvivorFunc = Callable[[Population, FitnessFunc], List[int]]
 CooldownFunc = Callable[[float, float], float]
 OutputFunc = Callable[[Chromosome], None]
+
 
 ###########################################################################################################################
 ### Helper Functions
@@ -90,25 +116,24 @@ def calculate_distances(n_cities: int, cities: List[City], distance_func: Callab
     return distance_matrix
 
 
-def has_converged(population: Population, fitness_func: FitnessFunc) -> bool:
+def has_converged(population: Population, fitness_scores: List[np.float64]) -> bool:
     """Check if all the chromosomes in the population are same or not
 
     Args:
         population (Population): Population to check
-
+        fitness_scores (List[np.float64]): The fitness scores for the provided population
     Returns:
         bool: True if the population has convered, else False
     """
-    fitness_score: npt.NDArray = np.apply_along_axis(fitness_func, 1, population)
 
     return (
-        np.all(fitness_score == fitness_score[0])
+        np.all(fitness_scores == fitness_scores[0])
         or np.array([chromosome == population[0] for chromosome in population]).all()
     )
 
 
-def cooldown(temperature: float, cool_down_date: float):
-    return temperature * cool_down_date
+def cooldown(temperature: float, cool_down_rate: float):
+    return temperature * cool_down_rate
 
 
 ###########################################################################################################################
@@ -165,47 +190,31 @@ def create_initial_population(size: int, n_allele: int, kind: str, fitness_func:
 
     def generate_randomly(size, n_allele):
         random_chromosomes = list()
-        rng = np.random.default_rng(seed=42)
         for _ in range(size):
             random_chromosomes.append(rng.choice(n_allele, size=n_allele, replace=False))
         return np.array(random_chromosomes)
 
-    def generate_randomly_top(size: int, n_allele: int, fitness_func: FitnessFunc, explore_ratio: float, top_k: float):
+    def generate_randomly_top(
+        size: int, n_allele: int, fitness_func: FitnessFunc, exploration_rate: float, select_top_k: float
+    ):
         random_chromosomes = list()
-        rng = np.random.default_rng(seed=42)
-        for _ in range(ceil(size * explore_ratio)):
+        for _ in range(ceil(size * exploration_rate)):
             random_chromosomes.append(rng.choice(n_allele, size=n_allele, replace=False))
         random_chromosomes = np.array(random_chromosomes)
-        fitness_scores = np.apply_along_axis(fitness_func, 1, random_chromosomes)
-        sorted_fitness_score_idxs = fitness_scores.argsort()[: ceil(size * explore_ratio * top_k)]
+
+        fitness_scores: npt.NDArray = np.empty(random_chromosomes.shape[0])
+        for idx, chromosome in enumerate(random_chromosomes):
+            fitness_scores[idx] = fitness_func(chromosome)
+
+        sorted_fitness_score_idxs = fitness_scores.argsort()[: ceil(size * exploration_rate * select_top_k)]
         return random_chromosomes[sorted_fitness_score_idxs]
-
-    def generate_from_cauchy_distribution(size: int, n_allele: int) -> npt.NDArray:
-        random_chromosomes = list()
-        rng = np.random.default_rng(seed=42)
-
-        for _ in range(size):
-            # make sure the list has unique list, because TSP cannot have duplicate cities
-            while True:
-                random_chromosome = np.floor(np.abs((n_allele * rng.standard_cauchy(n_allele)) % n_allele)).astype(
-                    np.int32
-                )
-                _, unique_counts = np.unique(random_chromosome, return_counts=True)
-
-                if all(unique_counts == 1):
-                    random_chromosomes.append(random_chromosome)
-                    break
-
-        return np.array(random_chromosomes)
 
     if kind == "permutation":
         return generate_from_permutation(size, n_allele)
     elif kind == "random":
         return generate_randomly(size, n_allele, fitness_func)
     elif kind == "random_top":
-        return generate_randomly_top(size, n_allele, fitness_func, kwargs["explore_ratio"], kwargs["top_k"])
-    elif kind == "cauchy":
-        return generate_from_cauchy_distribution(size, n_allele)
+        return generate_randomly_top(size, n_allele, fitness_func, kwargs["exploration_rate"], kwargs["select_top_k"])
     else:
         raise ValueError("In valid value for kind. Must be 'random' or 'cauchy'.")
 
@@ -222,7 +231,10 @@ def roulette_wheel_based_selection(population: Population, fitness_func: Fitness
     Returns:
         npt.NDArray: a selected chromosome, ready to mate!
     """
-    fitness_scores: npt.NDArray[np.float64] = np.apply_along_axis(fitness_func, 1, population)
+    # fitness_scores: npt.NDArray[np.float64] = np.apply_along_axis(fitness_func, 1, population)
+    fitness_scores: npt.NDArray = np.empty(population.shape[0])
+    for idx, chromosome in enumerate(population):
+        fitness_scores[idx] = fitness_func(chromosome)
 
     parents = list()
 
@@ -251,12 +263,12 @@ def roulette_wheel_based_selection(population: Population, fitness_func: Fitness
     return tuple(parents)
 
 
-def tournament_selection(population: Population, fitness_func: FitnessFunc, tournament_size: int) -> List[Chromosome]:
+def tournament_selection(population: Population, fitness_scores: npt.NDArray, tournament_size: int) -> List[Chromosome]:
     """Picks `tournament_size` number of chromosomes from the population and returns the best from that batch.
 
     Args:
         population (Population): A collection of Chromosomes
-        fitness_func (FitnessFunc): The fitness score calculating function
+        fitness_func (npt.NDArray): Fitness score for the chromosomes in the population
         tournament_size (int): The number of Chromosomes to consider in a tournament
 
     Returns:
@@ -268,9 +280,7 @@ def tournament_selection(population: Population, fitness_func: FitnessFunc, tour
 
         tournament_contestants_idxs: npt.NDArray = np.random.choice(range(population.shape[0]), size=tournament_size)
         tournament_contestants: Population = population[tournament_contestants_idxs]
-        contestant_fitness_scores: npt.NDArray[np.float64] = np.apply_along_axis(
-            fitness_func, 1, tournament_contestants
-        )
+        contestant_fitness_scores: npt.NDArray = fitness_scores[tournament_contestants_idxs]
         winners.append(tournament_contestants[np.argmin(contestant_fitness_scores)])
 
     return winners
@@ -357,10 +367,6 @@ def two_point_crossover(
 
         children.append(child)
 
-        # if len(children) == 2:
-        #     if all(children[0] == children[1]):
-        #         children.pop()
-
     return children
 
 
@@ -402,6 +408,48 @@ def swap_mutation(chromosome: Chromosome, mutation_probability: float) -> Chromo
     return mutated_chromosome
 
 
+def swap_mutation_over_population(population: Population, mutation_probability: float) -> Population:
+    """Perform Swap Mutation technique over the entire provided population.
+       Numpy Optimized Implementation of Swap Mutation
+    Args:
+        population (Population): the population to be mutated
+        mutation_probability (float): mutation probability for the population
+
+    Returns:
+        Population: the mutated population
+    """
+    # do mutation based on mutation probability
+    chromosome_mutation_probability: np.float64 = np.random.rand(population.shape[0])
+
+    # get indexes of all chromosomes where mutation needs to be done
+    mutable_chromosome_idxs: npt.NDArray = (chromosome_mutation_probability > mutation_probability).nonzero()[0]
+
+    # create a copy of the population to perform mutation on
+    mutated_population: Population = population[mutable_chromosome_idxs].copy()
+
+    n_mutable_chromosome: int = len(mutable_chromosome_idxs)
+    if n_mutable_chromosome == 0:
+        return population
+
+    # create a copy of the population
+    new_population: Population = population.copy()
+
+    # create two indices for each chromosome, used to select the indices to swap
+    swap_idxs: npt.NDArray = rng.random((n_mutable_chromosome, 2)).argpartition(1, axis=1)[:, :2]
+
+    # mutate the population
+    mutated_population[:, swap_idxs[:, 0]], mutated_population[:, swap_idxs[:, 1]] = (
+        mutated_population[:, swap_idxs[:, 1]],
+        mutated_population[:, swap_idxs[:, 0]],
+    )
+
+    # put back the mutated population
+    for idx, mutated_chromosome in zip(mutable_chromosome_idxs, mutated_population):
+        new_population[idx] = mutated_chromosome
+
+    return mutated_population
+
+
 def scramble_mutation(chromosome: Chromosome, mutation_probability: float) -> Chromosome:
     # do mutation based on mutation probability
     do_mutate: np.float64 = np.random.rand()
@@ -411,7 +459,6 @@ def scramble_mutation(chromosome: Chromosome, mutation_probability: float) -> Ch
     size: Chromosome = chromosome.shape[0]
     org_sampled_idxs: npt.NDArray[np.int32] = random.sample(range(1, size), floor(size / 2))
 
-    rng: Generator = np.random.default_rng(seed=42)
     randomized_sampled_idx: npt.NDArray[np.int32] = org_sampled_idxs.copy()
     rng.shuffle(randomized_sampled_idx)
 
@@ -420,6 +467,51 @@ def scramble_mutation(chromosome: Chromosome, mutation_probability: float) -> Ch
     mutated_chromosome[org_sampled_idxs] = mutated_chromosome[randomized_sampled_idx]
 
     return mutated_chromosome
+
+
+def scramble_mutation_over_population(population: Population, mutation_probability: float) -> Population:
+    """Performs Scramble Mutation over the entire Population.
+       A NumPy based efficient implementation of the Scramble Mutation.
+    Args:
+        population (Population): the population to mutate
+        mutation_probability (float): mutation probability for the population
+
+    Returns:
+        Population: the mutated population
+    """
+    n_allele: int = population[0].shape[0]
+
+    # do mutation based on mutation probability
+    chromosome_mutation_probability: np.float64 = np.random.rand(population.shape[0])
+
+    # get indexes of all chromosomes where mutation needs to be done
+    mutable_chromosome_idxs: npt.NDArray = (chromosome_mutation_probability > mutation_probability).nonzero()[0]
+
+    # create a copy of the population to mutate
+    mutated_population: Population = population[mutable_chromosome_idxs].copy()
+
+    n_mutable_chromosome: int = len(mutable_chromosome_idxs)
+    if n_mutable_chromosome == 0:
+        return population
+
+    # create a copy of the population
+    mutated_population: Population = population.copy()
+
+    # create two indices for each chromosome, used to select the indices to swap
+    scramble_idxs: npt.NDArray = np.sort(
+        np.floor(rng.random((n_mutable_chromosome, 2)) * n_allele).astype(np.int32), axis=1
+    )
+
+    # for each chromosome to be mutated, get it from the population, shuffle the selected
+    # random part, and put it back to the chromosome to create the mutated chromosome
+    for chromosome_idx, scramble_idx in zip(mutable_chromosome_idxs, scramble_idxs):
+        start_idx, end_idx = scramble_idx
+        chromosome = mutated_population[chromosome_idx].copy()
+        to_scramble = chromosome[start_idx:end_idx]
+        rng.shuffle(to_scramble)
+        chromosome[start_idx:end_idx] = to_scramble
+
+    return mutated_population
 
 
 ###########################################################################################################################
@@ -449,11 +541,11 @@ def do_evolution(
     crossover_func: CrossoverFunc,
     mutation_func: MutationFunc,
     survivor_func: SurvivorFunc,
-    generation_limit: int,
+    n_generations: int,
     tolerance: float,
-    tolerance_wait: int,
+    n_wait_for_tolerance: int,
     population_decay_rate: float,
-    cooldown_func: CooldownFunc,
+    cool_down_func: CooldownFunc,
     output_func: Optional[OutputFunc] = None,
 ) -> Tuple[int, Population, np.float64]:
     # initial temperature
@@ -463,23 +555,19 @@ def do_evolution(
     population: Population = population_func(fitness_func=fitness_func)
     tolerance_wait_counter: int = 0
 
-    for gen in range(generation_limit):
+    for gen in range(n_generations):
         print(f"\n********************* START - GEN #{gen} *************************")
         print(f"Temperature: {temperature}")
-
-        # if gen == 0:
-        #     print("\nInitial Population: \n", population)
-        # else:
-        #     print("\nPopulation: \n", population)
 
         population_size: int = population.shape[0]
         print("Population size: ", population_size)
 
         # Calculate fitness score for all the chromosomes
-        fitness_scores: npt.NDArray = np.apply_along_axis(fitness_func, 1, population)
+        fitness_scores: npt.NDArray = np.empty(population.shape[0])
+        for idx, chromosome in enumerate(population):
+            fitness_scores[idx] = fitness_func(chromosome)
 
         # set previous best fitness score
-        fitness_scores = np.apply_along_axis(fitness_func, 1, population)
         prev_best_fitness_score = fitness_scores.min()
 
         # Select survivors
@@ -492,31 +580,32 @@ def do_evolution(
         # print("Save survivors: ", new_population)
 
         # reduce population each time by the `population_decay_rate`
+        # select parents and create children
         for _ in range(ceil(population_size * population_decay_rate) - survivor_offset):
 
             # select potential mates and generate children
-            parent_1, parent_2 = selection_func(population, fitness_func)
+            parent_1, parent_2 = selection_func(population, fitness_scores)
             child_1, child_2 = crossover_func(parent_1, parent_2)
-            # print("\nAfter Crossover: \n", new_population)
+            new_population.extend([child_1, child_2])
 
-            # mutate children
-            mutated_child_1, mutated_child_2 = mutation_func(child_1), mutation_func(child_2)
+        # mutate all new children except the survivors
+        mutated_population = mutation_func(population[:survivor_offset].copy())
+        new_population[:survivor_offset] = mutated_population
 
-            new_population.extend([mutated_child_1, mutated_child_2])
-            # print("\nAfter mutation: \n", new_population)
-
-        # update population
+        # updated population
         population = np.array(new_population)
-        # print("New Population: \n", population)
 
         # Recalculate fitness scores
-        fitness_scores = np.apply_along_axis(fitness_func, 1, population)
+        fitness_scores: npt.NDArray = np.empty(population.shape[0])
+        for idx, chromosome in enumerate(population):
+            fitness_scores[idx] = fitness_func(chromosome)
+
         fittest_chromosome_idx = fitness_scores.argmin()
 
         print(f"\n~~~~~~~~~~~~~~~~~~~~~ END - GEN #{gen} ~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
         # check for convergence
-        if has_converged(population, fitness_func):
+        if has_converged(population, fitness_scores):
             print(f"\n!!!!!   CONVERGED -- GEN #{gen}   !!!!!\n")
             break
 
@@ -524,7 +613,7 @@ def do_evolution(
         current_best_fitness_score = fitness_scores[fittest_chromosome_idx]
         if abs(prev_best_fitness_score - current_best_fitness_score) <= tolerance:
             tolerance_wait_counter += 1
-            if tolerance_wait_counter == tolerance_wait:
+            if tolerance_wait_counter == n_wait_for_tolerance:
                 print(f"\n!!!!!   TOLERANCE SATISFIED -- GEN #{gen}   !!!!\n")
                 break
         prev_best_fitness_score = current_best_fitness_score
@@ -540,7 +629,7 @@ def do_evolution(
         if temperature < 1000.0:
             print(f"\n!!!!!   TEMPERATURE TOO LOW -- GEN #{gen}   !!!!!\n")
             break
-        temperature = cooldown_func(temperature)
+        temperature = cool_down_func(temperature)
 
     return (gen, population[fittest_chromosome_idx], fitness_scores[fittest_chromosome_idx])
 
@@ -557,50 +646,43 @@ def main():
     # Read input file
     n_cities, cities = read_input(input_file_path)
     print("# of City : ", n_cities)
-    # print("Cities: ", cities)
 
     # Create distance matrix
     distance_matrix = calculate_distances(n_cities, cities, euclidean)
-    # print("distance matrix .. ", distance_matrix)
 
-    population_size = 5120
-    cool_down_rate = 0.85254
-    crossover_probability = 0.92525
-    mutability_probability = 0.902725
-    top_k = 0.45
-    if n_cities > 99:
-        population_size = 2800
-        cool_down_rate = 0.88475
-        crossover_probability = 0.80
-        mutability_probability = 0.86550
-        top_k = 0.46725
-        
+    # run the evoluation algorithm with provided configuration
     n_generation, fittest_chromosome, fitness_score = do_evolution(
         # population_func=functools.partial(create_initial_population, size=population_size, n_allele=n_cities, kind="random"),
         population_func=functools.partial(
-           create_initial_population, size=population_size, n_allele=n_cities, kind="random_top", explore_ratio=1.58525, top_k=top_k
+            create_initial_population,
+            size=INITIAL_POPULATION_SIZE,
+            n_allele=n_cities,
+            kind="random_top",
+            exploration_rate=EXPLORATION_RATE,
+            select_top_k=SELECT_TOP_K,
         ),
         fitness_func=functools.partial(calculate_fitness_score, distance_matrix=distance_matrix),
         # selection_func=roulette_wheel_based_selection,
-        selection_func=functools.partial(tournament_selection, tournament_size=152),
-        # crossover_func=functools.partial(ordered_crossover, crossover_probability=0.80),
-        crossover_func=functools.partial(two_point_crossover, n_allele=n_cities, crossover_probability=crossover_probability),
-        # mutation_func=functools.partial(reverse_sequence_mutation, mutation_probability=0.30),
-        mutation_func=functools.partial(swap_mutation, mutation_probability=mutability_probability),
-        # mutation_func=functools.partial(scramble_mutation, mutation_probability=0.25),
-        survivor_func=functools.partial(select_elites, elitism_rate=0.18725),
-        generation_limit=10000,
-        tolerance=1e-6,
-        tolerance_wait=3,
-        population_decay_rate=0.5015,
-        cooldown_func=functools.partial(cooldown, cool_down_date=cool_down_rate),
+        selection_func=functools.partial(tournament_selection, tournament_size=TOURNAMENT_SIZE),
+        # crossover_func=functools.partial(ordered_crossover, crossover_probability=CROSSOVER_PROBABILITY),
+        crossover_func=functools.partial(
+            two_point_crossover, n_allele=n_cities, crossover_probability=CROSSOVER_PROBABILITY
+        ),
+        # mutation_func=functools.partial(reverse_sequence_mutation, mutation_probability=MUTABILITY_PROBABILITY),
+        mutation_func=functools.partial(swap_mutation_over_population, mutation_probability=MUTABILITY_PROBABILITY),
+        # mutation_func=functools.partial(scramble_mutation, mutation_probability=MUTABILITY_PROBABILITY),
+        survivor_func=functools.partial(select_elites, elitism_rate=ELITISM_RATE),
+        n_generations=N_GENERATIONS,
+        tolerance=TOLERANCE,
+        n_wait_for_tolerance=N_WAIT_FOR_TOLERANGE,
+        population_decay_rate=POPULATION_DECAY_RATE,
+        cool_down_func=functools.partial(cooldown, cool_down_rate=COOL_DOWN_RATE),
         output_func=functools.partial(store_cities_for_path, cities=cities, output_file_path="./output.txt"),
     )
 
     print("\n================   RESULTS   =====================")
     print("Generation: ", n_generation)
     print("Fitness Score: ", fitness_score)
-    # print("Fittest Chromosome: ", fittest_chromosome)
     print("==================================================\n")
 
     # Store the final path results
