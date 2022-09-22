@@ -5,7 +5,7 @@ import random
 from math import ceil, floor
 from pathlib import Path
 from itertools import permutations
-from typing import Callable, Generator, List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
 from warnings import warn
 
 import numpy as np
@@ -39,19 +39,19 @@ OutputFunc = Callable[[Chromosome], None]
 ### Program Configuration
 ###########################################################################################################################
 # Initial Population Controls
-INITIAL_POPULATION_SIZE = 8192
-EXPLORATION_RATE = 1.70725
-SELECT_TOP_K = 0.70
+INITIAL_POPULATION_SIZE = 4096
+EXPLORATION_RATE = 1.25
+SELECT_TOP_K = 0.52
 
 # Selection, Crossover, Mutability, and Survivor Selection Controls
-TOURNAMENT_SIZE = 128
+# TOURNAMENT_SIZE = 128
 CROSSOVER_PROBABILITY = 0.8258
 MUTABILITY_PROBABILITY = 0.5275215
 ELITISM_RATE = 0.14275
 
 # Covergence Controls
 N_GENERATIONS = 10000
-POPULATION_DECAY_RATE = 0.5125
+POPULATION_DECAY_RATE = 0.50
 COOL_DOWN_RATE = 0.9055475
 TOLERANCE = 1e-8
 N_WAIT_FOR_TOLERANGE = 4
@@ -210,7 +210,9 @@ def create_initial_population(size: int, n_allele: int, kind: str, fitness_func:
         sorted_fitness_score_idxs = fitness_scores.argsort()[: ceil(size * exploration_rate * select_top_k)]
         return random_chromosomes[sorted_fitness_score_idxs]
 
-    def generate_randomly_topped(size: int, n_allele: int, fitness_func: FitnessFunc, exploration_rate: float, select_top_k: float):
+    def generate_randomly_topped(
+        size: int, n_allele: int, fitness_func: FitnessFunc, exploration_rate: float, select_top_k: float
+    ):
         result = list()
         random_chromosomes = list()
         for _ in range(ceil(size * exploration_rate)):
@@ -237,41 +239,35 @@ def create_initial_population(size: int, n_allele: int, kind: str, fitness_func:
 ###########################################################################################################################
 ### Selection Methods
 ###########################################################################################################################
-def roulette_wheel_based_selection(population: Population, fitness_func: FitnessFunc) -> Tuple[Chromosome, Chromosome]:
+def roulette_wheel_based_selection(
+    population: Population, fitness_scores: npt.NDArray[np.float64]
+) -> Tuple[Chromosome, Chromosome]:
     """Defines the best fit individuals and selects them for breeding. Roulette wheel-based selection.
 
     Args:
         population (Population): list of path from which the mating pool is created
+        fitness_scores (npt.NDArray[np.float64]): fitness scores for each individual in the population
 
     Returns:
         npt.NDArray: a selected chromosome, ready to mate!
     """
-    fitness_scores: npt.NDArray = np.empty(population.shape[0])
-    for idx, chromosome in enumerate(population):
-        fitness_scores[idx] = fitness_func(chromosome)
-
     parents = list()
 
     # calculate the probablity for each chromosome, here we are minimizing so absolute of value - max fitness score
-    minimize_fitness_scores = np.abs(fitness_scores - fitness_scores.max())
-    population_fitness = minimize_fitness_scores.sum()
+    minimized_fitness_scores = np.abs(fitness_scores - fitness_scores.max())
+    minimized_population_fitness_total = minimized_fitness_scores.sum()
 
-    chromosome_probability = np.array([(score / population_fitness) for score in minimize_fitness_scores])
-    chromosome_probability_sorted_idx = chromosome_probability.argsort()
+    minimized_fitness_probability = minimized_fitness_scores / minimized_population_fitness_total
+    chromosome_probability_sorted_idxs = minimized_fitness_probability.argsort()[::-1]
 
-    minimize_fitness_scores_sorted: npt.NDArray[np.float64] = minimize_fitness_scores[
-        chromosome_probability_sorted_idx[::-1]
-    ]
-    population_sorted: npt.NDArray = population[chromosome_probability_sorted_idx[::-1]]
-
-    while len(parents) != 2:
-        pointer = np.random.random() * population_fitness
+    for _ in range(2):
+        pointer = rng.random()
 
         sum_ = 0
-        for idx, score in enumerate(minimize_fitness_scores_sorted):
-            sum_ += score
+        for idx in chromosome_probability_sorted_idxs:
+            sum_ += minimized_fitness_probability[idx]
             if sum_ > pointer:
-                parents.append(population_sorted[idx])
+                parents.append(population[idx])
                 break
 
     return tuple(parents)
@@ -676,8 +672,8 @@ def main():
             select_top_k=SELECT_TOP_K,
         ),
         fitness_func=functools.partial(calculate_fitness_score, distance_matrix=distance_matrix),
-        # selection_func=roulette_wheel_based_selection,
-        selection_func=functools.partial(tournament_selection, tournament_size=TOURNAMENT_SIZE),
+        selection_func=roulette_wheel_based_selection,
+        # selection_func=functools.partial(tournament_selection, tournament_size=TOURNAMENT_SIZE),
         # crossover_func=functools.partial(ordered_crossover, crossover_probability=CROSSOVER_PROBABILITY),
         crossover_func=functools.partial(
             two_point_crossover, n_allele=n_cities, crossover_probability=CROSSOVER_PROBABILITY
