@@ -40,20 +40,20 @@ OutputFunc = Callable[[Chromosome], None]
 ###########################################################################################################################
 # Initial Population Controls
 INITIAL_POPULATION_SIZE = 5000
-# EXPLORATION_RATE = 1.50
-# SELECT_TOP_K = 0.75
+EXPLORATION_RATE = 1.70725
+SELECT_TOP_K = 0.68
 
 # Selection, Crossover, Mutability, and Survivor Selection Controls
-# TOURNAMENT_SIZE = 128
-CROSSOVER_PROBABILITY = 0.90
-MUTABILITY_PROBABILITY = 0.675
-ELITISM_RATE = 0.20
+TOURNAMENT_SIZE = 128
+CROSSOVER_PROBABILITY = 0.8858
+MUTABILITY_PROBABILITY = 0.515215
+ELITISM_RATE = 0.18775
 
 # Covergence Controls
 N_GENERATIONS = 10000
-POPULATION_DECAY_RATE = 0.5725
-COOL_DOWN_RATE = 0.9275
-TOLERANCE = 1e-8
+POPULATION_DECAY_RATE = 0.5805
+COOL_DOWN_RATE = 0.89752
+TOLERANCE = 1e-12
 N_WAIT_FOR_TOLERANGE = 3
 
 
@@ -665,18 +665,18 @@ def main():
 
     # run the evoluation algorithm with provided configuration
     n_generation, fittest_chromosome, fitness_score = do_evolution(
-        population_func=functools.partial(create_initial_population, size=INITIAL_POPULATION_SIZE, n_allele=n_cities, kind="random"),
-        # population_func=functools.partial(
-        #     create_initial_population,
-        #     size=INITIAL_POPULATION_SIZE,
-        #     n_allele=n_cities,
-        #     kind="random_top",
-        #     exploration_rate=EXPLORATION_RATE,
-        #     select_top_k=SELECT_TOP_K,
-        # ),
+        # population_func=functools.partial(create_initial_population, size=INITIAL_POPULATION_SIZE, n_allele=n_cities, kind="random"),
+        population_func=functools.partial(
+            create_initial_population,
+            size=INITIAL_POPULATION_SIZE,
+            n_allele=n_cities,
+            kind="random_top",
+            exploration_rate=EXPLORATION_RATE,
+            select_top_k=SELECT_TOP_K,
+        ),
         fitness_func=functools.partial(calculate_fitness_score, distance_matrix=distance_matrix),
-        selection_func=roulette_wheel_based_selection,
-        # selection_func=functools.partial(tournament_selection, tournament_size=TOURNAMENT_SIZE),
+        # selection_func=roulette_wheel_based_selection,
+        selection_func=functools.partial(tournament_selection, tournament_size=TOURNAMENT_SIZE),
         # crossover_func=functools.partial(ordered_crossover, crossover_probability=CROSSOVER_PROBABILITY),
         crossover_func=functools.partial(
             two_point_crossover, n_allele=n_cities, crossover_probability=CROSSOVER_PROBABILITY
