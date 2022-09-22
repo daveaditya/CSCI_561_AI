@@ -31,7 +31,7 @@ SelectionFunc = Callable[[Population, FitnessFunc], npt.NDArray]
 CrossoverFunc = Callable[[Chromosome, Chromosome], Tuple[Chromosome, Chromosome]]
 MutationFunc = Callable[[Chromosome], Chromosome]
 SurvivorFunc = Callable[[Population, FitnessFunc], List[int]]
-CooldownFunc = Callable[[float, float], float]
+CoolDownFunc = Callable[[float, float], float]
 OutputFunc = Callable[[Chromosome], None]
 
 
@@ -39,22 +39,22 @@ OutputFunc = Callable[[Chromosome], None]
 ### Program Configuration
 ###########################################################################################################################
 # Initial Population Controls
-INITIAL_POPULATION_SIZE = 4096
-EXPLORATION_RATE = 1.25
-SELECT_TOP_K = 0.52
+INITIAL_POPULATION_SIZE = 5000
+# EXPLORATION_RATE = 1.50
+# SELECT_TOP_K = 0.75
 
 # Selection, Crossover, Mutability, and Survivor Selection Controls
 # TOURNAMENT_SIZE = 128
-CROSSOVER_PROBABILITY = 0.8258
-MUTABILITY_PROBABILITY = 0.5275215
-ELITISM_RATE = 0.14275
+CROSSOVER_PROBABILITY = 0.90
+MUTABILITY_PROBABILITY = 0.675
+ELITISM_RATE = 0.20
 
 # Covergence Controls
 N_GENERATIONS = 10000
-POPULATION_DECAY_RATE = 0.50
-COOL_DOWN_RATE = 0.9055475
+POPULATION_DECAY_RATE = 0.5725
+COOL_DOWN_RATE = 0.9275
 TOLERANCE = 1e-8
-N_WAIT_FOR_TOLERANGE = 4
+N_WAIT_FOR_TOLERANGE = 3
 
 
 ###########################################################################################################################
@@ -270,7 +270,7 @@ def roulette_wheel_based_selection(
                 parents.append(population[idx])
                 break
 
-    return tuple(parents)
+    return parents
 
 
 def tournament_selection(population: Population, fitness_scores: npt.NDArray, tournament_size: int) -> List[Chromosome]:
@@ -555,7 +555,7 @@ def do_evolution(
     tolerance: float,
     n_wait_for_tolerance: int,
     population_decay_rate: float,
-    cool_down_func: CooldownFunc,
+    cool_down_func: CoolDownFunc,
     output_func: Optional[OutputFunc] = None,
 ) -> Tuple[int, Population, np.float64]:
     # initial temperature
@@ -626,6 +626,9 @@ def do_evolution(
             if tolerance_wait_counter == n_wait_for_tolerance:
                 print(f"\n!!!!!   TOLERANCE SATISFIED -- GEN #{gen}   !!!!\n")
                 break
+        else:
+            if tolerance_wait_counter > 0:
+                tolerance_wait_counter = 0
         prev_best_fitness_score = current_best_fitness_score
 
         if output_func:
@@ -662,15 +665,15 @@ def main():
 
     # run the evoluation algorithm with provided configuration
     n_generation, fittest_chromosome, fitness_score = do_evolution(
-        # population_func=functools.partial(create_initial_population, size=INITIAL_POPULATION_SIZE, n_allele=n_cities, kind="random"),
-        population_func=functools.partial(
-            create_initial_population,
-            size=INITIAL_POPULATION_SIZE,
-            n_allele=n_cities,
-            kind="random_top",
-            exploration_rate=EXPLORATION_RATE,
-            select_top_k=SELECT_TOP_K,
-        ),
+        population_func=functools.partial(create_initial_population, size=INITIAL_POPULATION_SIZE, n_allele=n_cities, kind="random"),
+        # population_func=functools.partial(
+        #     create_initial_population,
+        #     size=INITIAL_POPULATION_SIZE,
+        #     n_allele=n_cities,
+        #     kind="random_top",
+        #     exploration_rate=EXPLORATION_RATE,
+        #     select_top_k=SELECT_TOP_K,
+        # ),
         fitness_func=functools.partial(calculate_fitness_score, distance_matrix=distance_matrix),
         selection_func=roulette_wheel_based_selection,
         # selection_func=functools.partial(tournament_selection, tournament_size=TOURNAMENT_SIZE),
