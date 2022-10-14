@@ -120,8 +120,6 @@ class GO:
     def get_opponent_piece(self, piece):
         return self.WHITE_PIECE if piece == self.BLACK_PIECE else self.BLACK_PIECE
 
-
-
     def find_valid_moves(self, board, piece, my_piece):
         valid_moves_list = {
             VALID_MOVE_ONE_CAPTURING: list(),
@@ -188,7 +186,6 @@ class GO:
                         stack.append((i_prime, j_prime))
         return False
 
-
     def check_for_ko(self, i, j, my_piece):
         if self.previous_board[i][j] != my_piece:
             return False
@@ -205,7 +202,6 @@ class GO:
                     self.delete_group(new_game_board, i_prime, j_prime, self.opponent_piece)
         # If opponent's move is not out neighbor then it cannot be KO!
         return np.array_equal(new_game_board, self.previous_board)
-
 
     def opponent_move(self):
         if np.array_equal(self.current_board, self.previous_board):
@@ -593,7 +589,13 @@ class MyPlayer:
 
 if __name__ == "__main__":
 
-    go = GO(BOARD_SIZE, INPUT_FILE_PATH, {"BLACK_PIECE": BLACK_PIECE, "WHITE_PIECE": WHITE_PIECE, "UNOCCUPIED": UNOCCUPIED}, X_CHANGES, Y_CHANGES)
+    go = GO(
+        BOARD_SIZE,
+        INPUT_FILE_PATH,
+        {"BLACK_PIECE": BLACK_PIECE, "WHITE_PIECE": WHITE_PIECE, "UNOCCUPIED": UNOCCUPIED},
+        X_CHANGES,
+        Y_CHANGES,
+    )
     piece_type, previous_board, current_board = go.piece, go.previous_board, go.current_board
     step = load_game_info(previous_board, current_board)
 
