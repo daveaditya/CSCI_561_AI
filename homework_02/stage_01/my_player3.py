@@ -102,8 +102,8 @@ class GO:
             # piece = 1 => we are black, piece = 2 => we are white
             piece = int(game_info[0])
 
-            previous_board = np.zeros((self.board_size, self.board_size), dtype=np.int)
-            current_board = np.zeros((self.board_size, self.board_size), dtype=np.int)
+            previous_board = np.zeros((self.board_size, self.board_size), dtype=np.int32)
+            current_board = np.zeros((self.board_size, self.board_size), dtype=np.int32)
 
             for line_num in range(1, 6):
                 for col_num in range(len(game_info[line_num])):
