@@ -120,119 +120,6 @@ class GO:
     def get_opponent_piece(self, piece):
         return self.WHITE_PIECE if piece == self.BLACK_PIECE else self.BLACK_PIECE
 
-    def find_valid_moves(self, board, piece, my_piece):
-        valid_moves_list = {
-            VALID_MOVE_ONE_CAPTURING: list(),
-            VALID_MOVE_TWO_REGULAR: list(),
-            VALID_MOVE_THREE_SIZE: list(),
-        }
-
-        for i in range(self.board_size):
-            for j in range(self.board_size):
-                if board[i][j] == self.UNOCCUPIED:
-                    if self.find_liberty(board, i, j, piece):
-                        # Check for 'KO' rule before validating this move!
-                        if not self.check_for_ko(i, j, my_piece):
-                            if i == 0 or j == 0 or i == self.board_size - 1 or j == self.board_size - 1:
-                                valid_moves_list[VALID_MOVE_THREE_SIZE].append((i, j))
-                            else:
-                                valid_moves_list.get(VALID_MOVE_TWO_REGULAR).append((i, j))
-                    # Check if we are capturing some stones by doing this move
-                    else:
-                        for idx in range(len(self.X_CHANGES)):
-                            i_prime = i + self.X_CHANGES[idx]
-                            j_prime = j + self.Y_CHANGES[idx]
-                            if 0 <= i_prime < self.board_size and 0 <= j_prime < self.board_size:
-                                opponent_piece = self.get_opponent_piece(piece)
-                                if board[i_prime][j_prime] == opponent_piece:
-                                    # If there is a group of opponent_side that has no liberty with our move then we
-                                    # can capture them and do this move!
-                                    new_game_board = deepcopy(board)
-                                    new_game_board[i][j] = piece
-                                    if not self.find_liberty(new_game_board, i_prime, j_prime, opponent_piece):
-                                        # Check for 'KO' rule before validating this move!
-                                        if not self.check_for_ko(i, j, my_piece):
-                                            valid_moves_list[VALID_MOVE_ONE_CAPTURING].append((i, j))
-                                        break
-
-                        # If the for loop did not break at all, then all of our neighbors have liberty and we cannot
-                        # do this move
-
-        valid_moves_list = [
-            *valid_moves_list[VALID_MOVE_ONE_CAPTURING],
-            *valid_moves_list[VALID_MOVE_TWO_REGULAR],
-            *valid_moves_list[VALID_MOVE_THREE_SIZE],
-        ]
-
-        # DEBUG
-        # print(valid_moves_list)
-        return valid_moves_list
-
-    def find_liberty(self, board, i, j, piece):
-        stack = [(i, j)]
-        visited = set()
-        while stack:
-            top_node = stack.pop()
-            visited.add(top_node)
-            for idx in range(len(self.X_CHANGES)):
-                i_prime = top_node[0] + X_CHANGES[idx]
-                j_prime = top_node[1] + Y_CHANGES[idx]
-                if 0 <= i_prime < self.board_size and 0 <= j_prime < self.board_size:
-                    if (i_prime, j_prime) in visited:
-                        continue
-                    elif board[i_prime][j_prime] == self.UNOCCUPIED:
-                        return True
-                    elif board[i_prime][j_prime] == piece and (i_prime, j_prime) not in visited:
-                        stack.append((i_prime, j_prime))
-        return False
-
-    def check_for_ko(self, i, j, my_piece):
-        if self.previous_board[i][j] != my_piece:
-            return False
-        new_game_board = deepcopy(self.current_board)
-        new_game_board[i][j] = my_piece
-        opponent_i, opponent_j = self.opponent_move()
-        for idx in range(len(X_CHANGES)):
-            i_prime = i + X_CHANGES[idx]
-            j_prime = j + Y_CHANGES[idx]
-            if i_prime == opponent_i and j_prime == opponent_j:
-                # If opponent group does not have liberty then delete all of them
-                if not self.find_liberty(new_game_board, i_prime, j_prime, self.opponent_piece):
-                    # Delete all of the group from the board and check if we have the same exact board as before
-                    self.delete_group(new_game_board, i_prime, j_prime, self.opponent_piece)
-        # If opponent's move is not out neighbor then it cannot be KO!
-        return np.array_equal(new_game_board, self.previous_board)
-
-    def opponent_move(self):
-        if np.array_equal(self.current_board, self.previous_board):
-            return None
-        for i in range(self.board_size):
-            for j in range(self.board_size):
-                if (
-                    self.current_board[i][j] != self.previous_board[i][j]
-                    and self.current_board[i][j] != self.UNOCCUPIED
-                ):
-                    # Just a double check that the difference is a stone that belongs to the opponent!
-                    # assert self.current_board[i][j] == self.opponent_piece, "Houston we've got a problem!"
-                    return i, j
-
-    def delete_group(self, game_board, i, j, piece):
-        stack = [(i, j)]
-        visited = set()
-        while stack:
-            top_node = stack.pop()
-            visited.add(top_node)
-            game_board[top_node[0]][top_node[1]] = self.UNOCCUPIED
-            for idx in range(len(self.X_CHANGES)):
-                i_prime = top_node[0] + self.X_CHANGES[idx]
-                j_prime = top_node[1] + self.Y_CHANGES[idx]
-                if 0 <= i_prime < self.board_size and 0 <= j_prime < self.board_size:
-                    if (i_prime, j_prime) in visited:
-                        continue
-                    elif game_board[i_prime][j_prime] == piece:
-                        stack.append((i_prime, j_prime))
-        return game_board
-
 
 #############################################################
 ### My Player Implementation
@@ -274,7 +161,7 @@ class MyPlayer:
         is_second_pass = False
         max_move_value = -np.inf
         max_move = None
-        valid_moves = self.go.find_valid_moves(game_board, piece, self.my_piece)
+        valid_moves = self.find_valid_moves(game_board, piece, self.my_piece)
         valid_moves.append((-1, -1))
 
         if last_move == (-1, -1):
@@ -339,7 +226,7 @@ class MyPlayer:
 
         is_second_pass = False
         min_move_value = np.inf
-        valid_moves = self.go.find_valid_moves(game_board, piece, self.my_piece)
+        valid_moves = self.find_valid_moves(game_board, piece, self.my_piece)
         valid_moves.append((-1, -1))
 
         if last_move == (-1, -1):
@@ -585,6 +472,119 @@ class MyPlayer:
         return (
             m1_piece - m3_piece + 2 * m2_piece - (m1_opponent_piece - m3_opponent_piece + 2 * m2_opponent_piece)
         ) / 4
+
+    def find_valid_moves(self, board, piece, my_piece):
+        valid_moves_list = {
+            VALID_MOVE_ONE_CAPTURING: list(),
+            VALID_MOVE_TWO_REGULAR: list(),
+            VALID_MOVE_THREE_SIZE: list(),
+        }
+
+        for i in range(self.go.board_size):
+            for j in range(self.go.board_size):
+                if board[i][j] == self.go.UNOCCUPIED:
+                    if self.find_liberty(board, i, j, piece):
+                        # Check for 'KO' rule before validating this move!
+                        if not self.check_for_ko(i, j):
+                            if i == 0 or j == 0 or i == self.go.board_size - 1 or j == self.go.board_size - 1:
+                                valid_moves_list[VALID_MOVE_THREE_SIZE].append((i, j))
+                            else:
+                                valid_moves_list.get(VALID_MOVE_TWO_REGULAR).append((i, j))
+                    # Check if we are capturing some stones by doing this move
+                    else:
+                        for idx in range(len(self.go.X_CHANGES)):
+                            i_prime = i + self.go.X_CHANGES[idx]
+                            j_prime = j + self.go.Y_CHANGES[idx]
+                            if 0 <= i_prime < self.go.board_size and 0 <= j_prime < self.go.board_size:
+                                opponent_piece = self.go.get_opponent_piece(piece)
+                                if board[i_prime][j_prime] == opponent_piece:
+                                    # If there is a group of opponent_side that has no liberty with our move then we
+                                    # can capture them and do this move!
+                                    new_game_board = deepcopy(board)
+                                    new_game_board[i][j] = piece
+                                    if not self.find_liberty(new_game_board, i_prime, j_prime, opponent_piece):
+                                        # Check for 'KO' rule before validating this move!
+                                        if not self.check_for_ko(i, j):
+                                            valid_moves_list[VALID_MOVE_ONE_CAPTURING].append((i, j))
+                                        break
+
+                        # If the for loop did not break at all, then all of our neighbors have liberty and we cannot
+                        # do this move
+
+        valid_moves_list = [
+            *valid_moves_list[VALID_MOVE_ONE_CAPTURING],
+            *valid_moves_list[VALID_MOVE_TWO_REGULAR],
+            *valid_moves_list[VALID_MOVE_THREE_SIZE],
+        ]
+
+        # DEBUG
+        # print(valid_moves_list)
+        return valid_moves_list
+
+    def find_liberty(self, board, i, j, piece):
+        stack = [(i, j)]
+        visited = set()
+        while stack:
+            top_node = stack.pop()
+            visited.add(top_node)
+            for idx in range(len(self.go.X_CHANGES)):
+                i_prime = top_node[0] + self.go.X_CHANGES[idx]
+                j_prime = top_node[1] + self.go.Y_CHANGES[idx]
+                if 0 <= i_prime < self.go.board_size and 0 <= j_prime < self.go.board_size:
+                    if (i_prime, j_prime) in visited:
+                        continue
+                    elif board[i_prime][j_prime] == self.go.UNOCCUPIED:
+                        return True
+                    elif board[i_prime][j_prime] == piece and (i_prime, j_prime) not in visited:
+                        stack.append((i_prime, j_prime))
+        return False
+
+    def check_for_ko(self, i, j):
+        if self.previous_board[i][j] != self.my_piece:
+            return False
+        new_game_board = deepcopy(self.current_board)
+        new_game_board[i][j] = self.my_piece
+        opponent_i, opponent_j = self.opponent_move()
+        for idx in range(len(self.go.X_CHANGES)):
+            i_prime = i + self.go.X_CHANGES[idx]
+            j_prime = j + self.go.Y_CHANGES[idx]
+            if i_prime == opponent_i and j_prime == opponent_j:
+                # If opponent group does not have liberty then delete all of them
+                if not self.find_liberty(new_game_board, i_prime, j_prime, self.opponent_piece):
+                    # Delete all of the group from the board and check if we have the same exact board as before
+                    self.delete_group(new_game_board, i_prime, j_prime, self.opponent_piece)
+        # If opponent's move is not out neighbor then it cannot be KO!
+        return np.array_equal(new_game_board, self.previous_board)
+
+    def opponent_move(self):
+        if np.array_equal(self.current_board, self.previous_board):
+            return None
+        for i in range(self.go.board_size):
+            for j in range(self.go.board_size):
+                if (
+                    self.current_board[i][j] != self.previous_board[i][j]
+                    and self.current_board[i][j] != self.go.UNOCCUPIED
+                ):
+                    # Just a double check that the difference is a stone that belongs to the opponent!
+                    # assert self.current_board[i][j] == self.opponent_piece, "Houston we've got a problem!"
+                    return i, j
+
+    def delete_group(self, game_board, i, j, piece):
+        stack = [(i, j)]
+        visited = set()
+        while stack:
+            top_node = stack.pop()
+            visited.add(top_node)
+            game_board[top_node[0]][top_node[1]] = self.go.UNOCCUPIED
+            for idx in range(len(self.go.X_CHANGES)):
+                i_prime = top_node[0] + self.go.X_CHANGES[idx]
+                j_prime = top_node[1] + self.go.Y_CHANGES[idx]
+                if 0 <= i_prime < self.go.board_size and 0 <= j_prime < self.go.board_size:
+                    if (i_prime, j_prime) in visited:
+                        continue
+                    elif game_board[i_prime][j_prime] == piece:
+                        stack.append((i_prime, j_prime))
+        return game_board
 
 
 if __name__ == "__main__":
