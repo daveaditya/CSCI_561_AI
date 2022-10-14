@@ -11,7 +11,7 @@ if [ "$py" == "yes" ]; then
 	cmd="python my_player.py"
 	echo "PY"
 elif [ "$py3" == "yes" ]; then
-    cmd="python3 my_player3.py"
+    cmd="python my_player3.py"
 	echo "PY3"
 elif [ "$cpp" == "yes" ]; then
 	g++ -O2 *.cpp -o exe
