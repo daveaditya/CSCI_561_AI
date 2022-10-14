@@ -5,7 +5,6 @@ from typing import List
 import numpy as np
 
 from host import GO
-from submission.refs.my_player import BOARD_SIZE
 
 #############################################################
 ### Constants
@@ -22,8 +21,8 @@ BOARD_SIZE = 5
 
 # Game board representations
 UNOCCUPIED = 0
-BLACK = 1
-WHITE = 2
+BLACK_PIECE = 1
+WHITE_PIECE = 2
 
 # Komi for white player as per instructions
 KOMI = 2.5
@@ -51,8 +50,8 @@ def load_game_info(previous_board, current_board):
     is_previous_game_a_start = True
     is_current_game_a_start = True
 
-    for row_idx in range(BOARD_SIZE):
-        for col_idx in range(BOARD_SIZE):
+    for row_idx in range(BOARD_SIZE - 1):
+        for col_idx in range(BOARD_SIZE - 1):
             if previous_board[row_idx][col_idx] != UNOCCUPIED:
                 is_previous_game_a_start = False
                 is_current_game_a_start = False
@@ -74,166 +73,55 @@ def load_game_info(previous_board, current_board):
         game_info = {"step": step}
         json.dump(game_info, game_info_file, ensure_ascii=False)
 
-    return (step,)
+    return step
+
+
+def store_move(output_file_path, move):
+    with open(output_file_path, mode="w") as output_file:
+        if move is None or move == (-1, -1):
+            output_file.write("PASS")
+        else:
+            output_file.write(f"{move[0]},{move[1]}")
 
 
 #############################################################
 ### Go Class - Defines the Game Rules
 #############################################################
 class GO:
-    def __init__(self, n, input_file_path):
+    def __init__(self, board_size: int, input_file_path: str):
         """
         Go game.
 
         :param n: size of the board n*n
         """
-        self.size: int = n
+        self.board_size: int = board_size
 
-        self.X_move: bool = True  # X chess plays first
-        self.died_pieces: List = list()  # Intialize died pieces to be empty
-        self.n_move: int = 0  # Trace the number of moves
-        self.max_move: int = n * n - 1  # The max movement of a Go game
-        self.komi: float = n / 2  # Komi rule
-        self.verbose: bool = False  # Verbose only when there is a manual player
+        self.max_move: int = board_size * board_size - 1  # The max movement of a Go game
+        self.input_file_path = input_file_path
 
-        with open(input_file_path, mode="r") as input_file:
-            game_data = [input_file_line.strip() for input_file_line in input_file.readlines()]
+        with open(self.input_file_path, mode="r") as input_file:
+            game_info = [input_file_line.strip() for input_file_line in input_file.readlines()]
 
-            # piece_type = 1 => we are black, piece_type = 2 => we are white
-            self.piece_type = int(game_data[0])
+            # piece = 1 => we are black, piece = 2 => we are white
+            piece = int(game_info[0])
 
-            previous_board = np.zeros((self.go.size, self.go.size), dtype=np.int)
-            current_board = np.zeros((self.go.size, self.go.size), dtype=np.int)
+            previous_board = np.zeros((self.board_size, self.board_size), dtype=np.int)
+            current_board = np.zeros((self.board_size, self.board_size), dtype=np.int)
 
             for line_num in range(1, 6):
-                for col_num in range(len(game_data[line_num])):
-                    previous_board[line_num - 1][col_num] = game_data[line_num][col_num]
+                for col_num in range(len(game_info[line_num])):
+                    previous_board[line_num - 1][col_num] = game_info[line_num][col_num]
 
             for line_num in range(6, 11):
-                for col_num in range(len(game_data[line_num])):
-                    current_board[line_num - 6][col_num] = game_data[line_num][col_num]
+                for col_num in range(len(game_info[line_num])):
+                    current_board[line_num - 6][col_num] = game_info[line_num][col_num]
 
+            self.piece = piece
             self.previous_board = previous_board
             self.current_board = current_board
 
-    def store_move(output_file_path, next_move):
-        with open(output_file_path, mode="w") as output_file:
-            if next_move is None or next_move == (-1, -1):
-                output_file.write("PASS")
-            else:
-                output_file.write(f"{next_move[0]},{next_move[1]}")
-
-    def compare_board(self, board1, board2):
-        for i in range(self.size):
-            for j in range(self.size):
-                if board1[i][j] != board2[i][j]:
-                    return False
-        return True
-
-    def get_opponent_piece(self, piece_type):
-        return WHITE if piece_type == BLACK else BLACK
-
-    def detect_neighbor(self, i, j):
-        """
-        Detect all the neighbors of a given stone.
-
-        :param i: row number of the board.
-        :param j: column number of the board.
-        :return: a list containing the neighbors row and column (row, column) of position (i, j).
-        """
-        board = self.board
-        neighbors = []
-        # Detect borders and add neighbor coordinates
-        if i > 0:
-            neighbors.append((i - 1, j))
-        if i < len(board) - 1:
-            neighbors.append((i + 1, j))
-        if j > 0:
-            neighbors.append((i, j - 1))
-        if j < len(board) - 1:
-            neighbors.append((i, j + 1))
-        return neighbors
-
-    def detect_neighbor_ally(self, i, j):
-        """
-        Detect the neighbor allies of a given stone.
-
-        :param i: row number of the board.
-        :param j: column number of the board.
-        :return: a list containing the neighbored allies row and column (row, column) of position (i, j).
-        """
-        board = self.board
-        neighbors = self.detect_neighbor(i, j)  # Detect neighbors
-        group_allies = []
-        # Iterate through neighbors
-        for piece in neighbors:
-            # Add to allies list if having the same color
-            if board[piece[0]][piece[1]] == board[i][j]:
-                group_allies.append(piece)
-        return group_allies
-
-    def ally_dfs(self, i, j):
-        """
-        Using DFS to search for all allies of a given stone.
-
-        :param i: row number of the board.
-        :param j: column number of the board.
-        :return: a list containing the all allies row and column (row, column) of position (i, j).
-        """
-        stack = [(i, j)]  # stack for DFS serach
-        ally_members = []  # record allies positions during the search
-        while stack:
-            piece = stack.pop()
-            ally_members.append(piece)
-            neighbor_allies = self.detect_neighbor_ally(piece[0], piece[1])
-            for ally in neighbor_allies:
-                if ally not in stack and ally not in ally_members:
-                    stack.append(ally)
-        return ally_members
-
-    def find_liberty(self, game_state, i, j, side):
-        stack = [(i, j)]
-        visited = set()
-        while stack:
-            top_node = stack.pop()
-            visited.add(top_node)
-            for index in range(len(X_CHANGES)):
-                new_i = top_node[0] + X_CHANGES[index]
-                new_j = top_node[1] + Y_CHANGES[index]
-                if 0 <= new_i < BOARD_SIZE and 0 <= new_j < BOARD_SIZE:
-                    if (new_i, new_j) in visited:
-                        continue
-                    elif game_state[new_i][new_j] == UNOCCUPIED:
-                        return True
-                    elif game_state[new_i][new_j] == side and (new_i, new_j) not in visited:
-                        stack.append((new_i, new_j))
-        return False
-
-    def check_for_ko(self, i, j):
-        if self.previous_board[i][j] != self.side:
-            return False
-        new_game_state = deepcopy(self.current_board)
-        new_game_state[i][j] = self.side
-        opponent_i, opponent_j = self.opponent_move()
-        for index in range(len(X_CHANGES)):
-            new_i = i + X_CHANGES[index]
-            new_j = j + Y_CHANGES[index]
-            if new_i == opponent_i and new_j == opponent_j:
-                # If opponent group does not have liberty then delete all of them
-                if not self.check_for_liberty(new_game_state, new_i, new_j, self.opponent_side):
-                    # Delete all of the group from the board and check if we have the same exact board as before
-                    self.delete_group(new_game_state, new_i, new_j, self.opponent_side)
-        # If opponent's move is not out neighbor then it cannot be KO!
-        return np.array_equal(new_game_state, self.previous_board)
-
-    def update_board(self, new_board):
-        """
-        Update the board with new_board
-
-        :param new_board: new board.
-        :return: None.
-        """
-        self.board = new_board
+    def get_opponent_piece(self, piece):
+        return WHITE_PIECE if piece == BLACK_PIECE else BLACK_PIECE
 
 
 #############################################################
@@ -241,24 +129,24 @@ class GO:
 ### MiniMax with Alpha-Beta Pruning
 #############################################################
 class MyPlayer:
-    def __init__(self, go: GO, piece_type: int, previous_board, current_board):
+    def __init__(self, go: GO, piece: int, previous_board, current_board):
         self.type = "minimax_with_pruning_player"
         self.go: GO = go
-        self.piece_type: int = piece_type
-        self.opponent_piece_type: int = self.go.get_opponent_piece(self.piece_type)
+        self.my_piece: int = piece
+        self.opponent_piece: int = self.go.get_opponent_piece(self.my_piece)
         self.previous_board: List[List[int]] = previous_board
         self.current_board: List[List[int]] = current_board
 
-    def make_move(self, search_depth, branching_factor, step):
-        max_move, max_move_score = self.maxmillians_move(
-            self.current_board, self.side, search_depth, 0, branching_factor, -np.inf, np.inf, None, step, False
+    def make_move(self, search_depth: int, branching_factor: int, step: int):
+        max_move, _ = self.maxmillians_move(
+            self.current_board, self.my_piece, search_depth, 0, branching_factor, -np.inf, np.inf, None, step, False
         )
-        self.go.store_move(max_move)
+        store_move(OUTPUT_FILE_PATH, max_move)
 
     def maxmillians_move(
         self,
-        game_state,
-        side,
+        game_board,
+        piece,
         search_depth,
         current_depth,
         branching_factor,
@@ -268,28 +156,32 @@ class MyPlayer:
         step,
         is_second_pass,
     ):
-        if search_depth == current_depth or step + current_depth == 24:
-            return self.evaluate_game_state(game_state, side)
+        if search_depth == current_depth or step + current_depth == self.go.max_move:
+            return self.evaluate_game_board(game_board, piece)
         if is_second_pass:
-            return self.evaluate_game_state(game_state, side)
-        is_second_pass = False
+            return self.evaluate_game_board(game_board, piece)
 
+        is_second_pass = False
         max_move_value = -np.inf
         max_move = None
-        valid_moves = self.find_valid_moves(game_state, side)
+        valid_moves = self.find_valid_moves(game_board, piece)
         valid_moves.append((-1, -1))
+
         if last_move == (-1, -1):
             is_second_pass = True
+
         for valid_move in valid_moves[:branching_factor]:
             # Create new game state
-            opponent_side = self.get_opponent_side(side)
+            opponent_piece = self.go.get_opponent_piece(piece)
+
             if valid_move == (-1, -1):
-                new_game_state = deepcopy(game_state)
+                new_game_board = deepcopy(game_board)
             else:
-                new_game_state = self.move(game_state, side, valid_move)
+                new_game_board = self.do_move(game_board, piece, valid_move)
+
             min_move_value = self.mindys_move(
-                new_game_state,
-                opponent_side,
+                new_game_board,
+                opponent_piece,
                 search_depth,
                 current_depth + 1,
                 branching_factor,
@@ -299,15 +191,19 @@ class MyPlayer:
                 step,
                 is_second_pass,
             )
+
             if max_move_value < min_move_value:
                 max_move_value = min_move_value
                 max_move = valid_move
+
             if max_move_value >= beta:
                 if current_depth == 0:
                     return max_move, max_move_value
                 else:
                     return max_move_value
+
             alpha = max(alpha, max_move_value)
+
         if current_depth == 0:
             return max_move, max_move_value
         else:
@@ -315,8 +211,8 @@ class MyPlayer:
 
     def mindys_move(
         self,
-        game_state,
-        side,
+        game_board,
+        piece,
         search_depth,
         current_depth,
         branching_factor,
@@ -327,24 +223,30 @@ class MyPlayer:
         is_second_pass,
     ):
         if search_depth == current_depth:
-            return self.evaluate_game_state(game_state, side)
+            return self.evaluate_game_board(game_board, piece)
         if step_number + current_depth == self.go.max_move or is_second_pass:
-            return self.evaluate_game_state(game_state, self.side)
+            return self.evaluate_game_board(game_board, self.my_piece)
+
         is_second_pass = False
         min_move_value = np.inf
-        valid_moves = self.find_valid_moves(game_state, side)
+        valid_moves = self.find_valid_moves(game_board, piece)
         valid_moves.append((-1, -1))
+
         if last_move == (-1, -1):
             is_second_pass = True
+
         for valid_move in valid_moves[:branching_factor]:
             # Create new game state
+            opponent_piece = self.go.get_opponent_piece(piece)
+
             if valid_move == (-1, -1):
-                new_game_state = deepcopy(game_state)
+                new_game_board = deepcopy(game_board)
             else:
-                new_game_state = self.move(game_state, side, valid_move)
-            max_move_value = self.max_value(
-                new_game_state,
-                self.opponent_piece_type,
+                new_game_board = self.do_move(game_board, piece, valid_move)
+
+            max_move_value = self.maxmillians_move(
+                new_game_board,
+                opponent_piece,
                 search_depth,
                 current_depth + 1,
                 branching_factor,
@@ -354,251 +256,260 @@ class MyPlayer:
                 step_number,
                 is_second_pass,
             )
+
             if max_move_value < min_move_value:
                 min_move_value = max_move_value
+
             if min_move_value <= alpha:
                 return min_move_value
+
             beta = min(beta, min_move_value)
 
         return min_move_value
 
-    def evaluate_game_state(self, game_state, side):
+    def evaluate_game_board(self, game_state, piece):
         # Define heuristic here
         # Count number of sides stones - opponent stones
-        opponent_piece = self.go.get_opponent_piece(side)
-        my_piece_count = 0
-        my_piece_liberties = set()
+        opponent_piece = self.go.get_opponent_piece(piece)
+        piece_count = 0
+        piece_liberties = set()
         opponent_piece_count = 0
         opponent_liberties = set()
 
-        for i in range(self.go.size):
-            for j in range(self.go.size):
-                if game_state[i][j] == side:
-                    my_piece_count += 1
+        for i in range(self.go.board_size):
+            for j in range(self.go.board_size):
+                if game_state[i][j] == piece:
+                    piece_count += 1
                 elif game_state[i][j] == opponent_piece:
                     opponent_piece_count += 1
                 # This point should be UNOCCUPIED!
                 else:
-                    for index in range(len(X_CHANGES)):
-                        new_i = i + X_CHANGES[index]
-                        new_j = j + Y_CHANGES[index]
-                        if 0 <= new_i < self.go.size and 0 <= new_j < self.go.size:
-                            if game_state[new_i][new_j] == side:
-                                my_piece_liberties.add((i, j))
-                            elif game_state[new_i][new_j] == opponent_piece:
+                    for idx in range(len(X_CHANGES)):
+                        i_prime = i + X_CHANGES[idx]
+                        j_prime = j + Y_CHANGES[idx]
+                        if 0 <= i_prime < self.go.board_size and 0 <= j_prime < self.go.board_size:
+                            if game_state[i_prime][j_prime] == piece:
+                                piece_liberties.add((i, j))
+                            elif game_state[i_prime][j_prime] == opponent_piece:
                                 opponent_liberties.add((i, j))
 
-        side_edge_count = 0
-        opponent_side_edge_count = 0
-        for j in range(self.go.size):
-            if game_state[0][j] == side or game_state[self.go.size - 1][j] == side:
-                side_edge_count += 1
-            if game_state[0][j] == opponent_piece or game_state[self.go.size - 1][j] == opponent_piece:
-                opponent_side_edge_count += 1
+        piece_edge_count = 0
+        opponent_piece_edge_count = 0
+        for j in range(self.go.board_size):
+            if game_state[0][j] == piece or game_state[self.go.board_size - 1][j] == piece:
+                piece_edge_count += 1
+            if game_state[0][j] == opponent_piece or game_state[self.go.board_size - 1][j] == opponent_piece:
+                opponent_piece_edge_count += 1
 
-        for j in range(1, self.go.size - 1):
-            if game_state[j][0] == side or game_state[j][self.go.size - 1] == side:
-                side_edge_count += 1
-            if game_state[j][0] == opponent_piece or game_state[j][self.go.size - 1] == opponent_piece:
-                opponent_side_edge_count += 1
+        for j in range(1, self.go.board_size - 1):
+            if game_state[j][0] == piece or game_state[j][self.go.board_size - 1] == piece:
+                piece_edge_count += 1
+            if game_state[j][0] == opponent_piece or game_state[j][self.go.board_size - 1] == opponent_piece:
+                opponent_piece_edge_count += 1
 
         center_unoccupied_count = 0
-        for i in range(1, self.go.size - 1):
-            for j in range(1, self.go.size - 1):
+        for i in range(1, self.go.board_size - 1):
+            for j in range(1, self.go.board_size - 1):
                 if game_state[i][j] == UNOCCUPIED:
                     center_unoccupied_count += 1
 
         score = (
-            min(max((len(my_piece_liberties) - len(opponent_liberties)), -8), 8)
-            + (-4 * self.calculate_euler_number(game_state, side))
-            + (5 * (my_piece_count - opponent_piece_count))
-            - (9 * side_edge_count * (center_unoccupied_count / 9))
+            min(max((len(piece_liberties) - len(opponent_liberties)), -8), 8)
+            + (-4 * self.calculate_magic_number(game_state, piece))
+            + (5 * (piece_count - opponent_piece_count))
+            - (9 * piece_edge_count * (center_unoccupied_count / 9))
         )
-        if self.side == WHITE:
+        if self.my_piece == WHITE_PIECE:
             score += KOMI
 
-    def do_move(self, board, side, move):
+        return score
+
+    def do_move(self, board, piece, move):
         new_board = deepcopy(board)
 
         # We know that the move which is going to be done is definitely valid for this side!
         # We checked for liberty and KO before! So we can do the move!
-        new_board[move[0]][move[1]] = side
+        new_board[move[0]][move[1]] = piece
 
         # Now we check if we have to delete opponents group or not
-        for index in range(len(X_CHANGES)):
-            new_i = move[0] + X_CHANGES[index]
-            new_j = move[1] + Y_CHANGES[index]
+        for idx in range(len(X_CHANGES)):
+            i_prime = move[0] + X_CHANGES[idx]
+            j_prime = move[1] + Y_CHANGES[idx]
 
-            if 0 <= new_i < self.go.size and 0 <= new_j < self.go.size:
-                opponent_side = self.go.get_opponent_side(side)
+            if 0 <= i_prime < self.go.board_size and 0 <= j_prime < self.go.board_size:
+                opponent_piece = self.go.get_opponent_piece(piece)
 
-                if new_board[new_i][new_j] == opponent_side:
+                if new_board[i_prime][j_prime] == opponent_piece:
                     # DFS!
-                    stack = [(new_i, new_j)]
+                    stack = [(i_prime, j_prime)]
                     visited = set()
-                    opponent_group_should_be_deleted = True
+                    should_delete_opponent_group = True
 
                     while stack:
                         top_node = stack.pop()
                         visited.add(top_node)
-                        for index in range(len(X_CHANGES)):
-                            new_new_i = top_node[0] + X_CHANGES[index]
-                            new_new_j = top_node[1] + Y_CHANGES[index]
-                            if 0 <= new_new_i < self.go.size and 0 <= new_new_j < self.go.size:
-                                if (new_new_i, new_new_j) in visited:
+                        for idx in range(len(X_CHANGES)):
+                            new_i_prime = top_node[0] + X_CHANGES[idx]
+                            new_j_prime = top_node[1] + Y_CHANGES[idx]
+
+                            if 0 <= new_i_prime < self.go.board_size and 0 <= new_j_prime < self.go.board_size:
+                                if (new_i_prime, new_j_prime) in visited:
                                     continue
-                                elif new_board[new_new_i][new_new_j] == UNOCCUPIED:
-                                    opponent_group_should_be_deleted = False
+                                elif new_board[new_i_prime][new_j_prime] == UNOCCUPIED:
+                                    should_delete_opponent_group = False
                                     break
                                 elif (
-                                    new_board[new_new_i][new_new_j] == opponent_side
-                                    and (new_new_i, new_new_j) not in visited
+                                    new_board[new_i_prime][new_j_prime] == opponent_piece
+                                    and (new_i_prime, new_j_prime) not in visited
                                 ):
-                                    stack.append((new_new_i, new_new_j))
+                                    stack.append((new_i_prime, new_j_prime))
 
-                    if opponent_group_should_be_deleted:
+                    if should_delete_opponent_group:
                         for stone in visited:
                             new_board[stone[0]][stone[1]] = UNOCCUPIED
 
         return new_board
 
-    def calculate_euler_number(self, game_state, side):
-        def count_q1(self, game_sub_state, side):
+    def calculate_magic_number(self, game_board, piece):
+        def count_m1(game_sub_board, piece):
             if (
                 (
-                    game_sub_state[0][0] == side
-                    and game_sub_state[0][1] != side
-                    and game_sub_state[1][0] != side
-                    and game_sub_state[1][1] != side
+                    game_sub_board[0][0] == piece
+                    and game_sub_board[0][1] != piece
+                    and game_sub_board[1][0] != piece
+                    and game_sub_board[1][1] != piece
                 )
                 or (
-                    game_sub_state[0][0] != side
-                    and game_sub_state[0][1] == side
-                    and game_sub_state[1][0] != side
-                    and game_sub_state[1][1] != side
+                    game_sub_board[0][0] != piece
+                    and game_sub_board[0][1] == piece
+                    and game_sub_board[1][0] != piece
+                    and game_sub_board[1][1] != piece
                 )
                 or (
-                    game_sub_state[0][0] != side
-                    and game_sub_state[0][1] != side
-                    and game_sub_state[1][0] == side
-                    and game_sub_state[1][1] != side
+                    game_sub_board[0][0] != piece
+                    and game_sub_board[0][1] != piece
+                    and game_sub_board[1][0] == piece
+                    and game_sub_board[1][1] != piece
                 )
                 or (
-                    game_sub_state[0][0] != side
-                    and game_sub_state[0][1] != side
-                    and game_sub_state[1][0] != side
-                    and game_sub_state[1][1] == side
+                    game_sub_board[0][0] != piece
+                    and game_sub_board[0][1] != piece
+                    and game_sub_board[1][0] != piece
+                    and game_sub_board[1][1] == piece
                 )
             ):
                 return 1
             else:
                 return 0
 
-        def count_q2(self, game_sub_state, side):
+        def count_m2(game_sub_board, piece):
             if (
-                game_sub_state[0][0] == side
-                and game_sub_state[0][1] != side
-                and game_sub_state[1][0] != side
-                and game_sub_state[1][1] == side
+                game_sub_board[0][0] == piece
+                and game_sub_board[0][1] != piece
+                and game_sub_board[1][0] != piece
+                and game_sub_board[1][1] == piece
             ) or (
-                game_sub_state[0][0] != side
-                and game_sub_state[0][1] == side
-                and game_sub_state[1][0] == side
-                and game_sub_state[1][1] != side
+                game_sub_board[0][0] != piece
+                and game_sub_board[0][1] == piece
+                and game_sub_board[1][0] == piece
+                and game_sub_board[1][1] != piece
             ):
                 return 1
             else:
                 return 0
 
-        def count_q3(self, game_sub_state, side):
+        def count_m3(game_sub_board, piece):
             if (
                 (
-                    game_sub_state[0][0] == side
-                    and game_sub_state[0][1] == side
-                    and game_sub_state[1][0] == side
-                    and game_sub_state[1][1] != side
+                    game_sub_board[0][0] == piece
+                    and game_sub_board[0][1] == piece
+                    and game_sub_board[1][0] == piece
+                    and game_sub_board[1][1] != piece
                 )
                 or (
-                    game_sub_state[0][0] != side
-                    and game_sub_state[0][1] == side
-                    and game_sub_state[1][0] == side
-                    and game_sub_state[1][1] == side
+                    game_sub_board[0][0] != piece
+                    and game_sub_board[0][1] == piece
+                    and game_sub_board[1][0] == piece
+                    and game_sub_board[1][1] == piece
                 )
                 or (
-                    game_sub_state[0][0] == side
-                    and game_sub_state[0][1] != side
-                    and game_sub_state[1][0] == side
-                    and game_sub_state[1][1] == side
+                    game_sub_board[0][0] == piece
+                    and game_sub_board[0][1] != piece
+                    and game_sub_board[1][0] == piece
+                    and game_sub_board[1][1] == piece
                 )
                 or (
-                    game_sub_state[0][0] != side
-                    and game_sub_state[0][1] == side
-                    and game_sub_state[1][0] == side
-                    and game_sub_state[1][1] == side
+                    game_sub_board[0][0] != piece
+                    and game_sub_board[0][1] == piece
+                    and game_sub_board[1][0] == piece
+                    and game_sub_board[1][1] == piece
                 )
             ):
                 return 1
             else:
                 return 0
 
-        opponent_side = self.get_opponent_side(side)
-        new_game_state = np.zeros((self.go.size + 2, self.go.size + 2), dtype=int)
+        opponent_piece = self.go.get_opponent_piece(piece)
+        new_game_board = np.zeros((self.go.board_size + 2, self.go.board_size + 2), dtype=int)
         # First copy the original game_state
-        for i in range(self.go.size):
-            for j in range(self.go.size):
-                new_game_state[i + 1][j + 1] = game_state[i][j]
+        for i in range(self.go.board_size):
+            for j in range(self.go.board_size):
+                new_game_board[i + 1][j + 1] = game_board[i][j]
 
-        q1_side = 0
-        q2_side = 0
-        q3_side = 0
-        q1_opponent_side = 0
-        q2_opponent_side = 0
-        q3_opponent_side = 0
+        m1_piece = 0
+        m2_piece = 0
+        m3_piece = 0
+        m1_opponent_piece = 0
+        m2_opponent_piece = 0
+        m3_opponent_piece = 0
 
-        for i in range(self.go.size):
-            for j in range(self.go.size):
-                new_game_sub_state = new_game_state[i : i + 2, j : j + 2]
-                q1_side += count_q1(new_game_sub_state, side)
-                q2_side += count_q2(new_game_sub_state, side)
-                q3_side += count_q3(new_game_sub_state, side)
-                q1_opponent_side += count_q1(new_game_sub_state, opponent_side)
-                q2_opponent_side += count_q2(new_game_sub_state, opponent_side)
-                q3_opponent_side += count_q3(new_game_sub_state, opponent_side)
+        for i in range(self.go.board_size):
+            for j in range(self.go.board_size):
+                new_game_sub_board = new_game_board[i : i + 2, j : j + 2]
+                m1_piece += count_m1(new_game_sub_board, piece)
+                m2_piece += count_m2(new_game_sub_board, piece)
+                m3_piece += count_m3(new_game_sub_board, piece)
+                m1_opponent_piece += count_m1(new_game_sub_board, opponent_piece)
+                m2_opponent_piece += count_m2(new_game_sub_board, opponent_piece)
+                m3_opponent_piece += count_m3(new_game_sub_board, opponent_piece)
 
-        return (q1_side - q3_side + 2 * q2_side - (q1_opponent_side - q3_opponent_side + 2 * q2_opponent_side)) / 4
+        return (
+            m1_piece - m3_piece + 2 * m2_piece - (m1_opponent_piece - m3_opponent_piece + 2 * m2_opponent_piece)
+        ) / 4
 
-    def find_valid_moves(self, board, side):
+
+    def find_valid_moves(self, board, piece):
         valid_moves_list = {
             VALID_MOVE_ONE_CAPTURING: list(),
             VALID_MOVE_TWO_REGULAR: list(),
             VALID_MOVE_THREE_SIZE: list(),
         }
 
-        for i in range(self.go.size):
-            for j in range(self.go.size):
+        for i in range(self.go.board_size):
+            for j in range(self.go.board_size):
                 if board[i][j] == UNOCCUPIED:
-                    if self.go.find_liberty(board, i, j, side):
+                    if self.find_liberty(board, i, j, piece):
                         # Check for 'KO' rule before validating this move!
-                        if not self.go.check_for_ko(i, j):
-                            if i == 0 or j == 0 or i == self.go.size - 1 or j == self.go.size - 1:
+                        if not self.check_for_ko(i, j):
+                            if i == 0 or j == 0 or i == self.go.board_size - 1 or j == self.go.board_size - 1:
                                 valid_moves_list[VALID_MOVE_THREE_SIZE].append((i, j))
                             else:
                                 valid_moves_list.get(VALID_MOVE_TWO_REGULAR).append((i, j))
                     # Check if we are capturing some stones by doing this move
                     else:
-                        for index in range(len(X_CHANGES)):
-                            new_i = i + X_CHANGES[index]
-                            new_j = j + Y_CHANGES[index]
-                            if 0 <= new_i < self.go.size and 0 <= new_j < self.go.size:
-                                opponent_side = self.go.get_opponent_piece(side)
-                                if board[new_i][new_j] == opponent_side:
+                        for idx in range(len(X_CHANGES)):
+                            i_prime = i + X_CHANGES[idx]
+                            j_prime = j + Y_CHANGES[idx]
+                            if 0 <= i_prime < self.go.board_size and 0 <= j_prime < self.go.board_size:
+                                opponent_piece = self.go.get_opponent_piece(piece)
+                                if board[i_prime][j_prime] == opponent_piece:
                                     # If there is a group of opponent_side that has no liberty with our move then we
                                     # can capture them and do this move!
-                                    new_game_state = deepcopy(board)
-                                    new_game_state[i][j] = side
-                                    if not self.go.find_liberty(new_game_state, new_i, new_j, opponent_side):
+                                    new_game_board = deepcopy(board)
+                                    new_game_board[i][j] = piece
+                                    if not self.find_liberty(new_game_board, i_prime, j_prime, opponent_piece):
                                         # Check for 'KO' rule before validating this move!
-                                        if not self.go.check_for_ko(i, j):
+                                        if not self.check_for_ko(i, j):
                                             valid_moves_list[VALID_MOVE_ONE_CAPTURING].append((i, j))
                                         break
 
@@ -615,11 +526,76 @@ class MyPlayer:
         # print(valid_moves_list)
         return valid_moves_list
 
+    def find_liberty(self, board, i, j, piece):
+        stack = [(i, j)]
+        visited = set()
+        while stack:
+            top_node = stack.pop()
+            visited.add(top_node)
+            for idx in range(len(X_CHANGES)):
+                i_prime = top_node[0] + X_CHANGES[idx]
+                j_prime = top_node[1] + Y_CHANGES[idx]
+                if 0 <= i_prime < BOARD_SIZE and 0 <= j_prime < BOARD_SIZE:
+                    if (i_prime, j_prime) in visited:
+                        continue
+                    elif board[i_prime][j_prime] == UNOCCUPIED:
+                        return True
+                    elif board[i_prime][j_prime] == piece and (i_prime, j_prime) not in visited:
+                        stack.append((i_prime, j_prime))
+        return False
+
+    def check_for_ko(self, i, j):
+        if self.previous_board[i][j] != self.my_piece:
+            return False
+        new_game_board = deepcopy(self.current_board)
+        new_game_board[i][j] = self.my_piece
+        opponent_i, opponent_j = self.opponent_move()
+        for idx in range(len(X_CHANGES)):
+            i_prime = i + X_CHANGES[idx]
+            j_prime = j + Y_CHANGES[idx]
+            if i_prime == opponent_i and j_prime == opponent_j:
+                # If opponent group does not have liberty then delete all of them
+                if not self.find_liberty(new_game_board, i_prime, j_prime, self.opponent_piece):
+                    # Delete all of the group from the board and check if we have the same exact board as before
+                    self.delete_group(new_game_board, i_prime, j_prime, self.opponent_piece)
+        # If opponent's move is not out neighbor then it cannot be KO!
+        return np.array_equal(new_game_board, self.previous_board)
+
+    def opponent_move(self):
+        if np.array_equal(self.current_board, self.previous_board):
+            return None
+        for i in range(self.go.board_size):
+            for j in range(self.go.board_size):
+                if (
+                    self.current_board[i][j] != self.previous_board[i][j]
+                    and self.current_board[i][j] != UNOCCUPIED
+                ):
+                    # Just a double check that the difference is a stone that belongs to the opponent!
+                    # assert self.current_board[i][j] == self.opponent_side, "Houston we've got a problem!"
+                    return i, j
+
+    def delete_group(self, game_board, i, j, side):
+        stack = [(i, j)]
+        visited = set()
+        while stack:
+            top_node = stack.pop()
+            visited.add(top_node)
+            game_board[top_node[0]][top_node[1]] = UNOCCUPIED
+            for idx in range(len(X_CHANGES)):
+                i_prime = top_node[0] + X_CHANGES[idx]
+                j_prime = top_node[1] + Y_CHANGES[idx]
+                if 0 <= i_prime < self.size and 0 <= j_prime < self.size:
+                    if (i_prime, j_prime) in visited:
+                        continue
+                    elif game_board[i_prime][j_prime] == side:
+                        stack.append((i_prime, j_prime))
+        return game_board
+
 
 if __name__ == "__main__":
 
     go = GO(BOARD_SIZE, INPUT_FILE_PATH)
-    piece_type, previous_board, current_board = go.piece_type, go.previous_board, go.current_board
+    piece_type, previous_board, current_board = go.piece, go.previous_board, go.current_board
     step = load_game_info(previous_board, current_board)
 
     my_player = MyPlayer(go, piece_type, previous_board, current_board)
