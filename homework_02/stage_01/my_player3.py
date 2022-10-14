@@ -1,10 +1,7 @@
 import json
 from copy import deepcopy
-from typing import Dict, List
 
 import numpy as np
-
-from host import GO
 
 #############################################################
 ### Constants
@@ -88,7 +85,7 @@ def store_move(output_file_path, move):
 ### Go Class - Defines the Game Rules
 #############################################################
 class GO:
-    def __init__(self, board_size: int, input_file_path: str, representations: Dict[str, int], x_changes: List[int], y_changes: List[int]):
+    def __init__(self, board_size: int, input_file_path: str, representations, x_changes, y_changes):
         self.board_size: int = board_size
         self.input_file_path = input_file_path
         self.BLACK_PIECE = representations["BLACK_PIECE"]
@@ -213,8 +210,8 @@ class GO:
     def opponent_move(self):
         if np.array_equal(self.current_board, self.previous_board):
             return None
-        for i in range(self.go.board_size):
-            for j in range(self.go.board_size):
+        for i in range(self.board_size):
+            for j in range(self.board_size):
                 if (
                     self.current_board[i][j] != self.previous_board[i][j]
                     and self.current_board[i][j] != self.UNOCCUPIED
@@ -251,8 +248,8 @@ class MyPlayer:
         self.go: GO = go
         self.my_piece: int = piece
         self.opponent_piece: int = self.go.get_opponent_piece(self.my_piece)
-        self.previous_board: List[List[int]] = previous_board
-        self.current_board: List[List[int]] = current_board
+        self.previous_board = previous_board
+        self.current_board = current_board
 
     def make_a_move(self, search_depth: int, branching_factor: int, step: int):
         max_move, _ = self.maxmillians_move(
