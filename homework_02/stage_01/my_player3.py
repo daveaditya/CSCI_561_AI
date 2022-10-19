@@ -8,7 +8,7 @@ import numpy as np
 #############################################################
 
 # Game related file paths
-BASE_DIR = "."
+BASE_DIR = "./stage_01/init"
 INPUT_FILE_PATH = f"{BASE_DIR}/input.txt"
 OUTPUT_FILE_PATH = f"{BASE_DIR}/output.txt"
 GAME_INFO_FILE_PATH = f"{BASE_DIR}/game_info.json"
@@ -84,7 +84,9 @@ def store_move(output_file_path, move):
 ### Go Class - Defines the Game Rules
 #############################################################
 class GO:
-    def __init__(self, game_board_size: int, input_file_path: str, representations, horizontal_changes, vertical_changes):
+    def __init__(
+        self, game_board_size: int, input_file_path: str, representations, horizontal_changes, vertical_changes
+    ):
         self.game_board_size: int = game_board_size
         self.input_file_path = input_file_path
         self.BLACK_PIECE = representations["BLACK_PIECE"]
@@ -148,6 +150,63 @@ class MyPlayer:
         )
         store_move(OUTPUT_FILE_PATH, max_move)
 
+    def has_snake_move(self, piece: int, game_board) -> bool:
+        # Match `P 0 0 P` or `P 0 0 0 P` horizontally, vertically and return true if it is present
+        game_board_transposed = np.transpose(game_board)
+        num_rows = np.shape(game_board)[0]
+        num_columns = np.shape(game_board)[1]
+
+        for i in range(num_rows):
+            for j in range(num_columns - 4 + 1):
+
+                # horizontal checking for P 0 0 P
+                if (
+                    game_board[i, j] == piece
+                    and game_board[i, j + 1] == UNOCCUPIED_SYMBOL
+                    and game_board[i, j + 2] == UNOCCUPIED_SYMBOL
+                    and game_board[i, j + 3] == piece
+                ):
+                    return True
+
+                # horizontal checking for P 0 0 0 P
+                if j == 0 and (
+                    (
+                        (
+                            game_board[i, j] == piece
+                            and game_board[i, j + 1] == UNOCCUPIED_SYMBOL
+                            and game_board[i, j + 2] == UNOCCUPIED_SYMBOL
+                            and game_board[i, j + 3] == UNOCCUPIED_SYMBOL
+                            and game_board[i, j + 4] == piece
+                        )
+                    )
+                ):
+                    return True
+
+                # vertical checking for P 0 0 P
+                if (
+                    game_board_transposed[i, j] == piece
+                    and game_board_transposed[i, j + 1] == UNOCCUPIED_SYMBOL
+                    and game_board_transposed[i, j + 2] == UNOCCUPIED_SYMBOL
+                    and game_board_transposed[i, j + 3] == piece
+                ):
+                    return True
+
+                # vertical checking for P 0 0 0 P
+                if j == 0 and (
+                    (
+                        (
+                            game_board_transposed[i, j] == piece
+                            and game_board_transposed[i, j + 1] == UNOCCUPIED_SYMBOL
+                            and game_board_transposed[i, j + 2] == UNOCCUPIED_SYMBOL
+                            and game_board_transposed[i, j + 3] == UNOCCUPIED_SYMBOL
+                            and game_board_transposed[i, j + 4] == piece
+                        )
+                    )
+                ):
+                    return True
+
+        return False
+
     def evaluate_game_board(self, piece, game_board):
         # My Heiristics
         piece_count = 0
@@ -192,11 +251,16 @@ class MyPlayer:
                 if game_board[i][j] == self.go.UNOCCUPIED_SYMBOL:
                     center_unoccupied_count += 1
 
+        snake_score = 0
+        if self.has_snake_move(piece, game_board):
+            snake_score = 5 if piece == self.my_piece else -5
+
         score = (
             min(max((len(piece_liberties) - len(opponent_liberties)), -8), 8)
-            + (-4 * self.calculate_magic_number(game_board, piece))
+            # + (-4 * self.calculate_magic_number(game_board, piece))
+            + snake_score
             + (5 * (piece_count - opponent_piece_count))
-            - (9 * piece_edge_count * (center_unoccupied_count / 9))
+            # - (9 * piece_edge_count * (center_unoccupied_count / 9))
         )
         if self.my_piece == self.go.WHITE_PIECE:
             score += KOMI
@@ -331,12 +395,10 @@ class MyPlayer:
                 return 0
 
         opponent_piece = self.go.get_opponent_piece(piece)
-        
-        # Duplicate game board
+
+        # Duplicate game board with extra places on each corner
         new_game_board = np.zeros((self.go.game_board_size + 2, self.go.game_board_size + 2), dtype=int)
-        for i in range(self.go.game_board_size):
-            for j in range(self.go.game_board_size):
-                new_game_board[i + 1][j + 1] = game_board[i][j]
+        new_game_board[1:-1, 1:-1] = game_board
 
         m1_piece = 0
         m2_piece = 0
@@ -392,7 +454,7 @@ class MyPlayer:
                                         if not self.check_for_ko(i, j):
                                             valid_moves_list[VALID_MOVE_ONE_CAPTURING].append((i, j))
                                         break
-                        
+
                         # Reaching this point means all of the neighbors have liberty
 
         valid_moves_list = [
