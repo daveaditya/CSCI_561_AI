@@ -8,7 +8,7 @@ import numpy as np
 #############################################################
 
 # Game related file paths
-BASE_DIR = "./stage_01/init"
+BASE_DIR = "."
 INPUT_FILE_PATH = f"{BASE_DIR}/input.txt"
 OUTPUT_FILE_PATH = f"{BASE_DIR}/output.txt"
 GAME_INFO_FILE_PATH = f"{BASE_DIR}/game_info.json"
@@ -35,6 +35,8 @@ VALID_MOVE_THREE_SIZE = "THREE_SIZE"
 # Player Constants
 SEARCH_DEPTH = 4
 BRANCHING_FACTOR = 20
+
+SNAKE_CHECK_STEP_THRESHOLD = 8
 
 
 #############################################################
@@ -127,13 +129,15 @@ class GO:
 ### MiniMax with Alpha-Beta Pruning
 #############################################################
 class MyPlayer:
-    def __init__(self, go: GO, piece: int, previous_board, current_board):
+    def __init__(self, go: GO, piece: int, previous_board, current_board, step, snake_check_step_threshold: int):
         self.type = "minimax_with_pruning_player"
         self.go: GO = go
         self.my_piece: int = piece
         self.opponent_piece: int = self.go.get_opponent_piece(self.my_piece)
         self.previous_board = previous_board
         self.current_board = current_board
+        self.step = step
+        self.snake_check_step_threshold = snake_check_step_threshold
 
     def make_a_move(self, search_depth: int, branching_factor: int, step: int):
         max_move, _ = self.maxmillians_move(
@@ -153,56 +157,21 @@ class MyPlayer:
     def has_snake_move(self, piece: int, game_board) -> bool:
         # Match `P 0 0 P` or `P 0 0 0 P` horizontally, vertically and return true if it is present
         game_board_transposed = np.transpose(game_board)
-        num_rows = np.shape(game_board)[0]
-        num_columns = np.shape(game_board)[1]
+        n_rows, n_cols = np.shape(game_board)
 
-        for i in range(num_rows):
-            for j in range(num_columns - 4 + 1):
+        small_snake = np.full((3, 4), piece, dtype=np.int32)
+        small_snake[1, 1], small_snake[1, 2] = 0, 0
 
-                # horizontal checking for P 0 0 P
-                if (
-                    game_board[i, j] == piece
-                    and game_board[i, j + 1] == UNOCCUPIED_SYMBOL
-                    and game_board[i, j + 2] == UNOCCUPIED_SYMBOL
-                    and game_board[i, j + 3] == piece
-                ):
-                    return True
+        big_snake = np.full((3, 5), piece, dtype=np.int32)
+        big_snake[1, 1], big_snake[1, 2], big_snake[1, 3] = 0, 0, 0
 
-                # horizontal checking for P 0 0 0 P
-                if j == 0 and (
-                    (
-                        (
-                            game_board[i, j] == piece
-                            and game_board[i, j + 1] == UNOCCUPIED_SYMBOL
-                            and game_board[i, j + 2] == UNOCCUPIED_SYMBOL
-                            and game_board[i, j + 3] == UNOCCUPIED_SYMBOL
-                            and game_board[i, j + 4] == piece
-                        )
-                    )
-                ):
-                    return True
+        for i in range(n_rows - 3 + 1):
+            for j in range(n_cols - 4 + 1):
+                if j == 0:
+                    if np.all(game_board_transposed[i : i + 3, j : j + 5] == big_snake):
+                        return True
 
-                # vertical checking for P 0 0 P
-                if (
-                    game_board_transposed[i, j] == piece
-                    and game_board_transposed[i, j + 1] == UNOCCUPIED_SYMBOL
-                    and game_board_transposed[i, j + 2] == UNOCCUPIED_SYMBOL
-                    and game_board_transposed[i, j + 3] == piece
-                ):
-                    return True
-
-                # vertical checking for P 0 0 0 P
-                if j == 0 and (
-                    (
-                        (
-                            game_board_transposed[i, j] == piece
-                            and game_board_transposed[i, j + 1] == UNOCCUPIED_SYMBOL
-                            and game_board_transposed[i, j + 2] == UNOCCUPIED_SYMBOL
-                            and game_board_transposed[i, j + 3] == UNOCCUPIED_SYMBOL
-                            and game_board_transposed[i, j + 4] == piece
-                        )
-                    )
-                ):
+                if np.all(game_board[i : i + 3, j : j + 4] == small_snake):
                     return True
 
         return False
@@ -252,8 +221,10 @@ class MyPlayer:
                     center_unoccupied_count += 1
 
         snake_score = 0
-        if self.has_snake_move(piece, game_board):
-            snake_score = 5 if piece == self.my_piece else -5
+        # Check for snake only if more than 8 moves have been played
+        if self.step > self.snake_check_step_threshold:
+            if self.has_snake_move(piece, game_board):
+                snake_score = 15 if piece == self.my_piece else -15
 
         score = (
             min(max((len(piece_liberties) - len(opponent_liberties)), -8), 8)
@@ -315,7 +286,7 @@ class MyPlayer:
 
         return new_board
 
-    def calculate_magic_number(self, game_board, piece):
+    def secondary_heuristics(self, game_board, piece):
         def count_m1(game_sub_board, piece):
             if (
                 (
@@ -668,6 +639,8 @@ if __name__ == "__main__":
     piece_type, previous_board, current_board = go.piece, go.previous_board, go.current_board
     step = load_game_info(previous_board, current_board)
 
-    my_player = MyPlayer(go, piece_type, previous_board, current_board)
+    my_player = MyPlayer(
+        go, piece_type, previous_board, current_board, step, snake_check_step_threshold=SNAKE_CHECK_STEP_THRESHOLD
+    )
 
     my_player.make_a_move(SEARCH_DEPTH, BRANCHING_FACTOR, step)
