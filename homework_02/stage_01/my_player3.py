@@ -37,6 +37,9 @@ SEARCH_DEPTH = 4
 BRANCHING_FACTOR = 20
 
 SNAKE_CHECK_STEP_THRESHOLD = 8
+INITIAL_MOVES_THRESHOLD = 8
+MIDDLE_MOVES_THRESHOLD = 8
+LAST_MOVES_THRESHOLD = 8
 
 
 #############################################################
@@ -177,7 +180,7 @@ class MyPlayer:
         return False
 
     def evaluate_game_board(self, piece, game_board):
-        # My Heiristics
+        # My Heuristics
         piece_count = 0
         piece_liberties = set()
         opponent_piece = self.go.get_opponent_piece(piece)
@@ -223,8 +226,11 @@ class MyPlayer:
         snake_score = 0
         # Check for snake only if more than 8 moves have been played
         if self.step > self.snake_check_step_threshold:
-            if self.has_snake_move(piece, game_board):
-                snake_score = 15 if piece == self.my_piece else -15
+            # Check if there are 10 or more pieces on board
+            counts = np.unique(game_board, return_counts=True)
+            if counts[1][1] >= 10 or counts[1][2] >= 10:
+                if self.has_snake_move(piece, game_board):
+                    snake_score = 15 if piece == self.my_piece else -15
 
         score = (
             min(max((len(piece_liberties) - len(opponent_liberties)), -8), 8)
@@ -642,5 +648,15 @@ if __name__ == "__main__":
     my_player = MyPlayer(
         go, piece_type, previous_board, current_board, step, snake_check_step_threshold=SNAKE_CHECK_STEP_THRESHOLD
     )
+
+    # Increase the search depth as we go ahead in the game.
+    search_depth = SEARCH_DEPTH
+    if step < INITIAL_MOVES_THRESHOLD:
+        search_depth = 2
+    elif INITIAL_MOVES_THRESHOLD < step < MIDDLE_MOVES_THRESHOLD:
+        search_depth = 3
+    else:
+        search_depth = 4
+
 
     my_player.make_a_move(SEARCH_DEPTH, BRANCHING_FACTOR, step)
