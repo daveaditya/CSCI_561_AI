@@ -14,7 +14,7 @@ random.seed(42)
 #############################################################
 class MyPlayer:
     def __init__(
-        self, go: GO, piece: int, previous_board, current_board, step, branching_factor, snake_check_step_threshold: int
+        self, go: GO, piece: int, previous_board, current_board, step, snake_check_step_threshold: int
     ):
         self.type = "minimax_with_pruning_player"
         self.go: GO = go
@@ -23,7 +23,6 @@ class MyPlayer:
         self.previous_board = previous_board
         self.current_board = current_board
         self.step = step
-        self.branching_factor = branching_factor
         self.snake_check_step_threshold = snake_check_step_threshold
 
     def make_a_move(self, search_depth: int, branching_factor: int, step: int):
@@ -526,7 +525,6 @@ if __name__ == "__main__":
         previous_board,
         current_board,
         step,
-        BRANCHING_FACTOR,
         snake_check_step_threshold=SNAKE_CHECK_STEP_THRESHOLD,
     )
 
