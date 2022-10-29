@@ -3,7 +3,6 @@
 # ProjectName: HW2
 # FileName: read
 # Description:
-# TodoList:
 
 
 def readInput(n, path="input.txt"):
