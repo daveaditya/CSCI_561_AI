@@ -1,4 +1,5 @@
 import random
+
 import numpy as np
 
 from constants import *
@@ -12,7 +13,9 @@ random.seed(42)
 ### MiniMax with Alpha-Beta Pruning
 #############################################################
 class MyPlayer:
-    def __init__(self, go: GO, piece: int, previous_board, current_board, step, branching_factor, snake_check_step_threshold: int):
+    def __init__(
+        self, go: GO, piece: int, previous_board, current_board, step, branching_factor, snake_check_step_threshold: int
+    ):
         self.type = "minimax_with_pruning_player"
         self.go: GO = go
         self.my_piece: int = piece
@@ -64,62 +67,52 @@ class MyPlayer:
 
     def evaluate_game_board(self, piece, game_board):
         # My Heuristics
-        piece_count = 0
+        piece_count = (game_board == piece).sum()
         piece_liberties = set()
         opponent_piece = self.go.get_opponent_piece(piece)
-        opponent_piece_count = 0
+        opponent_piece_count = (game_board == opponent_piece).sum()
         opponent_liberties = set()
 
         for i in range(0, self.go.game_board_size):
             for j in range(0, self.go.game_board_size):
-                if game_board[i][j] == opponent_piece:
-                    opponent_piece_count += 1
-                elif game_board[i][j] == piece:
-                    piece_count += 1
-                else:
-                    for idx in range(0, len(self.go.HORIZONTAL_CHANGES)):
-                        i_prime = i + self.go.HORIZONTAL_CHANGES[idx]
-                        j_prime = j + self.go.VERTICAL_CHANGES[idx]
+                if game_board[i][j] == self.go.UNOCCUPIED_SYMBOL:
+                    for i_dash, j_dash in self.go.CHANGES:
+                        i_prime = i + i_dash
+                        j_prime = j + j_dash
                         if 0 <= i_prime < self.go.game_board_size and 0 <= j_prime < self.go.game_board_size:
                             if game_board[i_prime][j_prime] == piece:
                                 piece_liberties.add((i, j))
                             elif game_board[i_prime][j_prime] == opponent_piece:
                                 opponent_liberties.add((i, j))
 
-        opponent_piece_edge_count = 0
-        piece_edge_count = 0
-        for j in range(0, self.go.game_board_size):
-            if game_board[0][j] == opponent_piece or game_board[self.go.game_board_size - 1][j] == opponent_piece:
-                opponent_piece_edge_count += 1
-            if game_board[0][j] == piece or game_board[self.go.game_board_size - 1][j] == piece:
-                piece_edge_count += 1
+        # Calculate pieces on edges
+        piece_edge_count =  sum([
+            # First row / Top
+            (game_board[0, :] == piece).sum(),
+            # Last Column / Right
+            (game_board[:, self.go.game_board_size - 1] == piece).sum(),
+            # Last row / Bottom
+            (game_board[self.go.game_board_size - 1, :] == piece).sum(),
+            # First column / Left
+            (game_board[:, 0] == piece).sum(),
+        ])
 
-        for j in range(1, self.go.game_board_size - 1):
-            if game_board[j][0] == opponent_piece or game_board[j][self.go.game_board_size - 1] == opponent_piece:
-                opponent_piece_edge_count += 1
-            if game_board[j][0] == piece or game_board[j][self.go.game_board_size - 1] == piece:
-                piece_edge_count += 1
-
-        center_unoccupied_count = 0
-        for i in range(1, self.go.game_board_size - 1):
-            for j in range(1, self.go.game_board_size - 1):
-                if game_board[i][j] == self.go.UNOCCUPIED_SYMBOL:
-                    center_unoccupied_count += 1
+        center_unoccupied_count = (game_board[1:-1, 1:-1] == self.go.UNOCCUPIED_SYMBOL).sum()
 
         snake_score = 0
         # Check for snake only if more than 8 moves have been played
         if self.step > self.snake_check_step_threshold:
             # Check if there are 10 or more pieces on board
-           if (game_board == self.go.BLACK_PIECE).sum() >= 10 or (game_board == self.go.WHITE_PIECE).sum() >= 10:
+            if (game_board == self.go.BLACK_PIECE).sum() >= 10 or (game_board == self.go.WHITE_PIECE).sum() >= 10:
                 if self.has_snake_move(piece, game_board):
-                    snake_score = (15 if piece == self.my_piece else -15) * snake_score
+                    snake_score = (MY_SNAKE_SCORE if piece == self.my_piece else OPPONENT_SNAKE_SCORE) * snake_score
 
         score = (
             min(max((len(piece_liberties) - len(opponent_liberties)), -8), 8)
             # + (-4 * self.calculate_magic_number(game_board, piece))
             + snake_score
             + (2 * (piece_count - opponent_piece_count))
-            # - (9 * piece_edge_count * (center_unoccupied_count / 9))
+            - (9 * piece_edge_count * (center_unoccupied_count / 9))
         )
         if self.my_piece == self.go.WHITE_PIECE:
             score += KOMI
@@ -133,15 +126,15 @@ class MyPlayer:
         new_board[move[0]][move[1]] = piece
 
         # Delete opponent group if required
-        for idx in range(len(self.go.HORIZONTAL_CHANGES)):
-            i_prime = move[0] + self.go.HORIZONTAL_CHANGES[idx]
-            j_prime = move[1] + self.go.VERTICAL_CHANGES[idx]
+        for i_dash, j_dash in self.go.CHANGES:
+            i_prime = move[0] + i_dash
+            j_prime = move[1] + j_dash
 
             if 0 <= i_prime < self.go.game_board_size and 0 <= j_prime < self.go.game_board_size:
                 opponent_piece = self.go.get_opponent_piece(piece)
 
                 if new_board[i_prime][j_prime] == opponent_piece:
-                    # DFS!
+                    # Perform Depth First Search at new location
                     stack = [(i_prime, j_prime)]
                     visited = set()
                     should_delete_opponent_group = True
@@ -149,9 +142,9 @@ class MyPlayer:
                     while stack:
                         top_node = stack.pop()
                         visited.add(top_node)
-                        for idx in range(len(self.go.HORIZONTAL_CHANGES)):
-                            new_i_prime = top_node[0] + self.go.HORIZONTAL_CHANGES[idx]
-                            new_j_prime = top_node[1] + self.go.VERTICAL_CHANGES[idx]
+                        for i_dash, j_dash in self.go.CHANGES:
+                            new_i_prime = top_node[0] + i_dash
+                            new_j_prime = top_node[1] + j_dash
 
                             if (
                                 0 <= new_i_prime < self.go.game_board_size
@@ -299,9 +292,9 @@ class MyPlayer:
                                 valid_moves_list.get(VALID_MOVE_TWO_REGULAR).append((i, j))
                     # Check for capture
                     else:
-                        for idx in range(len(self.go.HORIZONTAL_CHANGES)):
-                            i_prime = i + self.go.HORIZONTAL_CHANGES[idx]
-                            j_prime = j + self.go.VERTICAL_CHANGES[idx]
+                        for i_dash, j_dash in self.go.CHANGES:
+                            i_prime = i + i_dash
+                            j_prime = j + j_dash
                             if 0 <= i_prime < self.go.game_board_size and 0 <= j_prime < self.go.game_board_size:
                                 opponent_piece = self.go.get_opponent_piece(piece_type)
                                 if game_board[i_prime][j_prime] == opponent_piece:
@@ -332,13 +325,13 @@ class MyPlayer:
                     if self.find_liberty(piece_type, i, j, board):
                         # Check `KO` rule
                         if not self.check_for_ko(i, j):
-                                possible_placements.append((i, j))
+                            possible_placements.append((i, j))
 
                 # if len(possible_placements) == self.branching_factor + 5:
                 #     return possible_placements
 
         random.shuffle(possible_placements)
-        return possible_placements[:self.branching_factor]
+        return possible_placements[: self.branching_factor]
 
     def find_liberty(self, piece, i, j, board):
         stack = [(i, j)]
@@ -346,9 +339,9 @@ class MyPlayer:
         while stack:
             top_node = stack.pop()
             visited.add(top_node)
-            for idx in range(len(self.go.HORIZONTAL_CHANGES)):
-                i_prime = top_node[0] + self.go.HORIZONTAL_CHANGES[idx]
-                j_prime = top_node[1] + self.go.VERTICAL_CHANGES[idx]
+            for i_dash, j_dash in self.go.CHANGES:
+                i_prime = top_node[0] + i_dash
+                j_prime = top_node[1] + j_dash
                 if 0 <= i_prime < self.go.game_board_size and 0 <= j_prime < self.go.game_board_size:
                     if (i_prime, j_prime) in visited:
                         continue
@@ -366,9 +359,9 @@ class MyPlayer:
         new_game_board[i][j] = self.my_piece
         opponent_i, opponent_j = self.opponents_move()
 
-        for idx in range(len(self.go.HORIZONTAL_CHANGES)):
-            i_prime = i + self.go.HORIZONTAL_CHANGES[idx]
-            j_prime = j + self.go.VERTICAL_CHANGES[idx]
+        for i_dash, j_dash in self.go.CHANGES:
+            i_prime = i + i_dash
+            j_prime = j + j_dash
             if i_prime == opponent_i and j_prime == opponent_j:
                 # If no liberty delete all opponent group
                 if not self.find_liberty(self.opponent_piece, i_prime, j_prime, new_game_board):
@@ -392,13 +385,14 @@ class MyPlayer:
         stack = [(i, j)]
         visited = set()
 
+        # Perform Depth First Search
         while stack:
             top_node = stack.pop()
             visited.add(top_node)
-            game_board[top_node[0]][top_node[1]] = self.go.UNOCCUPIED_SYMBOL
-            for idx in range(len(self.go.HORIZONTAL_CHANGES)):
-                i_prime = top_node[0] + self.go.HORIZONTAL_CHANGES[idx]
-                j_prime = top_node[1] + self.go.VERTICAL_CHANGES[idx]
+            game_board[top_node[0], top_node[1]] = self.go.UNOCCUPIED_SYMBOL
+            for i_dash, j_dash in self.go.CHANGES:
+                i_prime = top_node[0] + i_dash
+                j_prime = top_node[1] + j_dash
                 if 0 <= i_prime < self.go.game_board_size and 0 <= j_prime < self.go.game_board_size:
                     if (i_prime, j_prime) in visited:
                         continue
@@ -428,7 +422,7 @@ class MyPlayer:
         is_second_pass = False
         max_move_value = -np.inf
         max_move = None
-        valid_moves = self.find_valid_moves_v2(piece, game_board)
+        valid_moves = self.find_valid_moves_v1(piece, game_board)
         valid_moves.append((-1, -1))
 
         if last_move == (-1, -1):
@@ -493,7 +487,7 @@ class MyPlayer:
         is_second_pass = False
         min_move_value = np.inf
 
-        valid_moves = self.find_valid_moves_v2(piece, game_board)
+        valid_moves = self.find_valid_moves_v1(piece, game_board)
         valid_moves.append((-1, -1))
 
         if last_move == (-1, -1):
@@ -537,14 +531,19 @@ if __name__ == "__main__":
         GAME_BOARD_SIZE,
         INPUT_FILE_PATH,
         {"BLACK_PIECE": BLACK_PIECE, "WHITE_PIECE": WHITE_PIECE, "UNOCCUPIED_SYMBOL": UNOCCUPIED_SYMBOL},
-        HORIZONTAL_CHANGES,
-        VERTICAL_CHANGES,
+        CHANGES
     )
     piece_type, previous_board, current_board = go.piece, go.previous_board, go.current_board
     step = load_game_info(previous_board, current_board)
 
     my_player = MyPlayer(
-        go, piece_type, previous_board, current_board, step, BRANCHING_FACTOR, snake_check_step_threshold=SNAKE_CHECK_STEP_THRESHOLD
+        go,
+        piece_type,
+        previous_board,
+        current_board,
+        step,
+        BRANCHING_FACTOR,
+        snake_check_step_threshold=SNAKE_CHECK_STEP_THRESHOLD,
     )
 
     # Increase the search depth as we go ahead in the game.
@@ -555,6 +554,5 @@ if __name__ == "__main__":
         search_depth = MIDDLE_SEARCH_DEPTH
     else:
         search_depth = END_SEARCH_DEPTH
-
 
     my_player.make_a_move(SEARCH_DEPTH, BRANCHING_FACTOR, step)

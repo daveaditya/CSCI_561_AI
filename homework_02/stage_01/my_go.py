@@ -7,15 +7,14 @@ import numpy as np
 #############################################################
 class MyGO:
     def __init__(
-        self, game_board_size: int, input_file_path: str, representations, horizontal_changes, vertical_changes
+        self, game_board_size: int, input_file_path: str, representations, changes
     ):
         self.game_board_size: int = game_board_size
         self.input_file_path = input_file_path
         self.BLACK_PIECE = representations["BLACK_PIECE"]
         self.WHITE_PIECE = representations["WHITE_PIECE"]
         self.UNOCCUPIED_SYMBOL = representations["UNOCCUPIED_SYMBOL"]
-        self.HORIZONTAL_CHANGES = horizontal_changes
-        self.VERTICAL_CHANGES = vertical_changes
+        self.CHANGES = changes
         self.verbose = True
 
         self.max_move: int = self.game_board_size * self.game_board_size - 1  # Calculate the maximum number of moves
