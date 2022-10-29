@@ -86,16 +86,18 @@ class MyPlayer:
                                 opponent_liberties.add((i, j))
 
         # Calculate pieces on edges
-        piece_edge_count =  sum([
-            # First row / Top
-            (game_board[0, :] == piece).sum(),
-            # Last Column / Right
-            (game_board[:, self.go.game_board_size - 1] == piece).sum(),
-            # Last row / Bottom
-            (game_board[self.go.game_board_size - 1, :] == piece).sum(),
-            # First column / Left
-            (game_board[:, 0] == piece).sum(),
-        ])
+        piece_edge_count = sum(
+            [
+                # First row / Top
+                (game_board[0, :] == piece).sum(),
+                # Last Column / Right
+                (game_board[:, self.go.game_board_size - 1] == piece).sum(),
+                # Last row / Bottom
+                (game_board[self.go.game_board_size - 1, :] == piece).sum(),
+                # First column / Left
+                (game_board[:, 0] == piece).sum(),
+            ]
+        )
 
         center_unoccupied_count = (game_board[1:-1, 1:-1] == self.go.UNOCCUPIED_SYMBOL).sum()
 
@@ -273,7 +275,7 @@ class MyPlayer:
             m1_piece - m3_piece + 2 * m2_piece - (m1_opponent_piece - m3_opponent_piece + 2 * m2_opponent_piece)
         ) / 4
 
-    def find_valid_moves_v1(self, piece_type, game_board):
+    def find_valid_moves(self, piece_type, game_board):
         valid_moves_list = {
             VALID_MOVE_ONE_CAPTURING: list(),
             VALID_MOVE_TWO_REGULAR: list(),
@@ -286,6 +288,7 @@ class MyPlayer:
                     if self.find_liberty(piece_type, i, j, game_board):
                         # Check `KO` rule
                         if not self.check_for_ko(i, j):
+                            # If in corners has high liberty
                             if i == 0 or j == 0 or i == self.go.game_board_size - 1 or j == self.go.game_board_size - 1:
                                 valid_moves_list[VALID_MOVE_THREE_SIZE].append((i, j))
                             else:
@@ -316,22 +319,6 @@ class MyPlayer:
         ]
 
         return valid_moves_list
-
-    def find_valid_moves_v2(self, piece_type, board):
-        possible_placements = []
-        for i in range(self.go.game_board_size):
-            for j in range(self.go.game_board_size):
-                if board[i][j] == self.go.UNOCCUPIED_SYMBOL:
-                    if self.find_liberty(piece_type, i, j, board):
-                        # Check `KO` rule
-                        if not self.check_for_ko(i, j):
-                            possible_placements.append((i, j))
-
-                # if len(possible_placements) == self.branching_factor + 5:
-                #     return possible_placements
-
-        random.shuffle(possible_placements)
-        return possible_placements[: self.branching_factor]
 
     def find_liberty(self, piece, i, j, board):
         stack = [(i, j)]
@@ -373,13 +360,10 @@ class MyPlayer:
     def opponents_move(self):
         if np.array_equal(self.current_board, self.previous_board):
             return None
-        for i in range(0, self.go.game_board_size):
-            for j in range(0, self.go.game_board_size):
-                if (
-                    self.current_board[i][j] != self.previous_board[i][j]
-                    and self.current_board[i][j] != self.go.UNOCCUPIED_SYMBOL
-                ):
-                    return i, j
+        locations = np.argwhere(
+            np.logical_and(self.current_board != self.previous_board, self.current_board != self.go.UNOCCUPIED_SYMBOL)
+        )
+        return locations[0]
 
     def delete_group(self, piece, i, j, game_board):
         stack = [(i, j)]
@@ -422,7 +406,7 @@ class MyPlayer:
         is_second_pass = False
         max_move_value = -np.inf
         max_move = None
-        valid_moves = self.find_valid_moves_v1(piece, game_board)
+        valid_moves = self.find_valid_moves(piece, game_board)
         valid_moves.append((-1, -1))
 
         if last_move == (-1, -1):
@@ -487,7 +471,7 @@ class MyPlayer:
         is_second_pass = False
         min_move_value = np.inf
 
-        valid_moves = self.find_valid_moves_v1(piece, game_board)
+        valid_moves = self.find_valid_moves(piece, game_board)
         valid_moves.append((-1, -1))
 
         if last_move == (-1, -1):
@@ -531,7 +515,7 @@ if __name__ == "__main__":
         GAME_BOARD_SIZE,
         INPUT_FILE_PATH,
         {"BLACK_PIECE": BLACK_PIECE, "WHITE_PIECE": WHITE_PIECE, "UNOCCUPIED_SYMBOL": UNOCCUPIED_SYMBOL},
-        CHANGES
+        CHANGES,
     )
     piece_type, previous_board, current_board = go.piece, go.previous_board, go.current_board
     step = load_game_info(previous_board, current_board)
