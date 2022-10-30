@@ -13,7 +13,9 @@ random.seed(42)
 ### MiniMax with Alpha-Beta Pruning
 #############################################################
 class MyPlayer:
-    def __init__(self, go: GO, piece: int, previous_board, current_board, step, snake_check_step_threshold: int, reward):
+    def __init__(
+        self, go: GO, piece: int, previous_board, current_board, step: int, snake_check_step_threshold: int, secondary_heuristics_threshold: int, reward
+    ):
         self.type = "minimax_with_pruning_player"
         self.go: GO = go
         self.my_piece: int = piece
@@ -22,6 +24,7 @@ class MyPlayer:
         self.current_board = current_board
         self.step = step
         self.snake_check_step_threshold = snake_check_step_threshold
+        self.secondary_heuristics_threshold = secondary_heuristics_threshold
 
         self.REWARD = reward
 
@@ -114,15 +117,7 @@ class MyPlayer:
         opponent_liberties_count = len(opponent_liberties)
 
         # Liberty based heuristics#1
-        # Need to maximize the number of liberties between this piece and the opponent piece
-        liberty_score = (
-            (piece_liberties_count - opponent_liberties_count)
-            if piece_type == self.my_piece
-            else (opponent_liberties_count - piece_liberties_count)
-        )
-
-        # Liberty based heuristics#1
-        # liberty_score = min(max((piece_liberties_count - opponent_liberties_count), -8), 8)
+        liberty_score = min(max((piece_liberties_count - opponent_liberties_count), -8), 8)
 
         # Calculate pieces on edges
         piece_edge_count = np.sum(
@@ -149,13 +144,19 @@ class MyPlayer:
         if step > self.snake_check_step_threshold:
             # Check if there are 10 or more pieces on board
             if (game_board == self.go.BLACK_PIECE).sum() >= 10 or (game_board == self.go.WHITE_PIECE).sum() >= 10:
-                if self.has_snake_move(piece_type, game_board):
+                snake_move_count = self.has_snake_move(piece_type, game_board)
+                if snake_move_count:
                     snake_score = (
                         MY_SNAKE_SCORE if piece_type == self.my_piece else OPPONENT_SNAKE_SCORE
-                    ) * snake_score
+                    ) * snake_move_count
 
         # secondary heuristics
-        secondary_score = 4 * (self.secondary_heuristics(game_board, opponent_piece_type) - self.secondary_heuristics(game_board, piece_type))
+        secondary_score = 0
+        if step > self.secondary_heuristics_threshold:
+            secondary_score = (
+                self.secondary_heuristics(game_board, opponent_piece_type)
+                - self.secondary_heuristics(game_board, piece_type)
+            )
 
         score = liberty_score + snake_score + piece_score + dead_score - edge_score + secondary_score
         if self.my_piece == self.go.WHITE_PIECE:
@@ -212,30 +213,36 @@ class MyPlayer:
         return new_board
 
     def secondary_heuristics(self, game_board, piece):
-        def checker(pattern, game_sub_board):
-            for p in pattern:
+        def checker(liberty_pattern, game_sub_board):
+            for p in liberty_pattern:
                 if np.all(p == game_sub_board):
                     return True
             return False
 
-        pattern_1 = np.array([
-            [[0, 1], [0, 0]],
-            [[0, 0], [0, 1]],
-            [[0, 1], [0, 0]],
-            [[1, 0], [0, 0]],
-        ])
+        single = np.array(
+            [
+                [[0, 1], [0, 0]],
+                [[0, 0], [0, 1]],
+                [[0, 1], [0, 0]],
+                [[1, 0], [0, 0]],
+            ]
+        )
 
-        pattern_2 = np.array([
-            [[1, 0], [1, 1]],
-            [[1, 1], [1, 0]],
-            [[1, 1], [0, 1]],
-            [[0, 1], [1, 1]],
-        ])
+        group_of_3 = np.array(
+            [
+                [[1, 0], [1, 1]],
+                [[1, 1], [1, 0]],
+                [[1, 1], [0, 1]],
+                [[0, 1], [1, 1]],
+            ]
+        )
 
-        pattern_3 = np.array([
-            [[1, 0], [0, 1]],
-            [[0, 1], [1, 0]],
-        ])
+        diagonal_pieces = np.array(
+            [
+                [[1, 0], [0, 1]],
+                [[0, 1], [1, 0]],
+            ]
+        )
 
         new_game_board = game_board.copy()
         new_game_board[new_game_board != piece] = 0
@@ -248,13 +255,11 @@ class MyPlayer:
         for i in range(self.go.game_board_size):
             for j in range(self.go.game_board_size):
                 new_game_sub_board = new_game_board[i : i + 2, j : j + 2]
-                m1_piece += checker(pattern_1, new_game_sub_board)
-                m2_piece += checker(pattern_2, new_game_sub_board)
-                m3_piece += checker(pattern_3, new_game_sub_board)
+                m1_piece += checker(single, new_game_sub_board)
+                m2_piece += checker(group_of_3, new_game_sub_board)
+                m3_piece += checker(diagonal_pieces, new_game_sub_board)
 
-        return (
-            m1_piece - m3_piece + 2 * m2_piece
-        ) / 4
+        return (m1_piece - m3_piece + 2 * m2_piece)
 
     def find_valid_moves(self, piece_type, game_board):
         valid_moves_list = {
@@ -420,7 +425,7 @@ class MyPlayer:
             # Reward the move
             reward = self.REWARD[valid_move[0]][valid_move[1]] * 0.1
 
-            max_move_value += (defense_score + reward)
+            max_move_value += defense_score
 
             if max_move_value < min_move_value:
                 max_move_value = min_move_value
@@ -517,6 +522,7 @@ if __name__ == "__main__":
         current_board,
         step,
         snake_check_step_threshold=SNAKE_CHECK_STEP_THRESHOLD,
+        secondary_heuristics_threshold=SECONDARY_HEURISTICS_THRESHOLD,
         reward=REWARD,
     )
 
