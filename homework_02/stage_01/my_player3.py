@@ -13,9 +13,7 @@ random.seed(42)
 ### MiniMax with Alpha-Beta Pruning
 #############################################################
 class MyPlayer:
-    def __init__(
-        self, go: GO, piece: int, previous_board, current_board, step, snake_check_step_threshold: int
-    ):
+    def __init__(self, go: GO, piece: int, previous_board, current_board, step, snake_check_step_threshold: int):
         self.type = "minimax_with_pruning_player"
         self.go: GO = go
         self.my_piece: int = piece
@@ -85,20 +83,20 @@ class MyPlayer:
                                 opponent_liberties.add((i, j))
 
         # Calculate pieces on edges
-        piece_edge_count = sum(
+        piece_edge_count = np.sum(
             [
                 # First row / Top
-                (game_board[0, :] == piece).sum(),
+                (game_board[0, :] == piece),
                 # Last Column / Right
-                (game_board[:, self.go.game_board_size - 1] == piece).sum(),
+                (game_board[:, self.go.game_board_size - 1] == piece),
                 # Last row / Bottom
-                (game_board[self.go.game_board_size - 1, :] == piece).sum(),
+                (game_board[self.go.game_board_size - 1, :] == piece),
                 # First column / Left
-                (game_board[:, 0] == piece).sum(),
+                (game_board[:, 0] == piece),
             ]
         )
 
-        center_unoccupied_count = (game_board[1:-1, 1:-1] == self.go.UNOCCUPIED_SYMBOL).sum()
+        middle_unoccupied_count = (game_board[1:-1, 1:-1] == self.go.UNOCCUPIED_SYMBOL).sum()
 
         snake_score = 0
         # Check for snake only if more than 8 moves have been played
@@ -109,11 +107,14 @@ class MyPlayer:
                     snake_score = (MY_SNAKE_SCORE if piece == self.my_piece else OPPONENT_SNAKE_SCORE) * snake_score
 
         score = (
+            # Need to maximize the number of liberties between this piece and the opponent piece
             min(max((len(piece_liberties) - len(opponent_liberties)), -8), 8)
-            # + (-4 * self.calculate_magic_number(game_board, piece))
+            # + (-4 * self.secondary_heuristics(game_board, piece))
             + snake_score
+            # Give points for having piece on game board
             + (2 * (piece_count - opponent_piece_count))
-            - (9 * piece_edge_count * (center_unoccupied_count / 9))
+            # Scoring for middle and edge of the board
+            - (9 * piece_edge_count * (middle_unoccupied_count / 9))
         )
         if self.my_piece == self.go.WHITE_PIECE:
             score += KOMI

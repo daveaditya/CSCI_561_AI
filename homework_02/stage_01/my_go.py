@@ -6,9 +6,7 @@ import numpy as np
 ### Go Class - Defines the Game Rules
 #############################################################
 class MyGO:
-    def __init__(
-        self, game_board_size: int, input_file_path: str, representations, changes
-    ):
+    def __init__(self, game_board_size: int, input_file_path: str, representations, changes):
         self.game_board_size: int = game_board_size
         self.input_file_path = input_file_path
         self.BLACK_PIECE = representations["BLACK_PIECE"]

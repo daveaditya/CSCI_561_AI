@@ -43,4 +43,3 @@ def store_move(output_file_path, move):
             output_file.write("PASS")
         else:
             output_file.write(f"{move[0]},{move[1]}")
-
