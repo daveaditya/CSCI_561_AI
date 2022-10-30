@@ -21,7 +21,8 @@ WHITE_PIECE = 2
 KOMI = 2.5
 
 # Format: Right, Bottom, Left, Up
-CHANGES = [(1, 0), (0, 1), (-1, 0), (0, -1)]
+NEIGHBOR_INDICES = [(1, 0), (0, 1), (-1, 0), (0, -1)]
+DEFENSE_INDICES = [(-1, 1), (1, 1), (-1, -1), (1, -1)]
 
 VALID_MOVE_ONE_CAPTURING = "ONE_CAPTURING"
 VALID_MOVE_TWO_REGULAR = "TWO_REGULAR"
@@ -42,3 +43,11 @@ END_SEARCH_DEPTH = 32
 
 MY_SNAKE_SCORE = 15
 OPPONENT_SNAKE_SCORE = 15
+
+REWARD = [
+    [100, 0, -5, 0, 100], 
+    [0, -5, -10, -5, 0], 
+    [-5, -10, -100, -10, -5], 
+    [0, -5, -10, -5, 0], 
+    [100, 0, -5, 0, 100]
+]

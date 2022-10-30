@@ -6,13 +6,14 @@ import numpy as np
 ### Go Class - Defines the Game Rules
 #############################################################
 class MyGO:
-    def __init__(self, game_board_size: int, input_file_path: str, representations, changes):
+    def __init__(self, game_board_size: int, input_file_path: str, representations, neighbor_indices, defense_indices):
         self.game_board_size: int = game_board_size
         self.input_file_path = input_file_path
         self.BLACK_PIECE = representations["BLACK_PIECE"]
         self.WHITE_PIECE = representations["WHITE_PIECE"]
         self.UNOCCUPIED_SYMBOL = representations["UNOCCUPIED_SYMBOL"]
-        self.CHANGES = changes
+        self.NEIGHBOR_INDICES = neighbor_indices
+        self.DEFENSE_INDICES = defense_indices
         self.verbose = True
 
         self.max_move: int = self.game_board_size * self.game_board_size - 1  # Calculate the maximum number of moves

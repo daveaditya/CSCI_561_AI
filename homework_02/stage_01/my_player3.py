@@ -13,7 +13,7 @@ random.seed(42)
 ### MiniMax with Alpha-Beta Pruning
 #############################################################
 class MyPlayer:
-    def __init__(self, go: GO, piece: int, previous_board, current_board, step, snake_check_step_threshold: int):
+    def __init__(self, go: GO, piece: int, previous_board, current_board, step, snake_check_step_threshold: int, reward):
         self.type = "minimax_with_pruning_player"
         self.go: GO = go
         self.my_piece: int = piece
@@ -22,6 +22,8 @@ class MyPlayer:
         self.current_board = current_board
         self.step = step
         self.snake_check_step_threshold = snake_check_step_threshold
+
+        self.REWARD = reward
 
     def make_a_move(self, search_depth: int, branching_factor: int, step: int):
         max_move, _ = self.maxmillians_move(
@@ -62,25 +64,48 @@ class MyPlayer:
 
         return snake_counter
 
-    def evaluate_game_board(self, piece, game_board, step):
+    def defense_heuristic(self, game_board, i, j):
+        defense = 0
+        for i_dash, j_dash in self.go.DEFENSE_INDICES:
+            i_prime = i + i_dash
+            j_prime = j + j_dash
+            if (
+                0 < i_prime < self.go.game_board_size
+                and 0 < j_prime < self.go.game_board_size
+                and game_board[i_prime, j_prime] == game_board[i, j]
+            ):
+                defense += 1
+        return defense
+
+    def count_dead(self, piece, game_board):
+        dead_count = 0
+        dead_indices = ()
+        for i in range(self.go.game_board_size):
+            for j in range(self.go.game_board_size):
+                if game_board[i, j] == piece and (i, j) not in dead_indices:
+                    if not self.find_liberty(piece, i, j, game_board):
+                        dead_indices.add((i, j))
+        return dead_count
+
+    def evaluate_game_board(self, piece_type, game_board, step):
         # My Heuristics
-        piece_count = (game_board == piece).sum()
+        piece_count = (game_board == piece_type).sum()
         piece_liberties = set()
-        opponent_piece = self.go.get_opponent_piece(piece)
+        opponent_piece = self.go.get_opponent_piece(piece_type)
         opponent_piece_count = (game_board == opponent_piece).sum()
         opponent_liberties = set()
 
         # Give points for having piece on game board
-        piece_score = (2 * (piece_count - opponent_piece_count))
+        piece_score = 2 * (piece_count - opponent_piece_count)
 
         for i in range(0, self.go.game_board_size):
             for j in range(0, self.go.game_board_size):
                 if game_board[i][j] == self.go.UNOCCUPIED_SYMBOL:
-                    for i_dash, j_dash in self.go.CHANGES:
+                    for i_dash, j_dash in self.go.NEIGHBOR_INDICES:
                         i_prime = i + i_dash
                         j_prime = j + j_dash
                         if 0 <= i_prime < self.go.game_board_size and 0 <= j_prime < self.go.game_board_size:
-                            if game_board[i_prime][j_prime] == piece:
+                            if game_board[i_prime][j_prime] == piece_type:
                                 piece_liberties.add((i, j))
                             elif game_board[i_prime][j_prime] == opponent_piece:
                                 opponent_liberties.add((i, j))
@@ -92,7 +117,7 @@ class MyPlayer:
         # Need to maximize the number of liberties between this piece and the opponent piece
         liberty_score = (
             (piece_liberties_count - opponent_liberties_count)
-            if piece == self.my_piece
+            if piece_type == self.my_piece
             else (opponent_liberties_count - piece_liberties_count)
         )
 
@@ -102,16 +127,21 @@ class MyPlayer:
         # Calculate pieces on edges
         piece_edge_count = np.sum(
             [
-                (game_board[0, :] == piece), # First row / Top
-                (game_board[:, self.go.game_board_size - 1] == piece), # Last Column / Right
-                (game_board[self.go.game_board_size - 1, :] == piece), # Last row / Bottom
-                (game_board[:, 0] == piece), # First column / Left
+                (game_board[0, :] == piece_type),  # First row / Top
+                (game_board[:, self.go.game_board_size - 1] == piece_type),  # Last Column / Right
+                (game_board[self.go.game_board_size - 1, :] == piece_type),  # Last row / Bottom
+                (game_board[:, 0] == piece_type),  # First column / Left
             ]
         )
         middle_unoccupied_count = (game_board[1:-1, 1:-1] == self.go.UNOCCUPIED_SYMBOL).sum()
 
         # Scoring for middle and edge of the board
-        edge_score = (9 * piece_edge_count * (middle_unoccupied_count / 9))
+        edge_score = 9 * piece_edge_count * (middle_unoccupied_count / 9)
+
+        # Dead count for opponent
+        dead_score = 0
+        if piece_type == self.my_piece:
+            dead_score = 10 * self.count_dead(piece_type, game_board)
 
         # Check for the no liberty move
         snake_score = 0
@@ -119,36 +149,33 @@ class MyPlayer:
         if step > self.snake_check_step_threshold:
             # Check if there are 10 or more pieces on board
             if (game_board == self.go.BLACK_PIECE).sum() >= 10 or (game_board == self.go.WHITE_PIECE).sum() >= 10:
-                if self.has_snake_move(piece, game_board):
-                    snake_score = (MY_SNAKE_SCORE if piece == self.my_piece else OPPONENT_SNAKE_SCORE) * snake_score
+                if self.has_snake_move(piece_type, game_board):
+                    snake_score = (
+                        MY_SNAKE_SCORE if piece_type == self.my_piece else OPPONENT_SNAKE_SCORE
+                    ) * snake_score
 
         # secondary heuristics
         # secondary_score = # + (-4 * self.secondary_heuristics(game_board, piece)
 
-        score = (
-            liberty_score
-            + snake_score
-            + piece_score
-            - edge_score
-        )
+        score = liberty_score + snake_score + piece_score + dead_score - edge_score
         if self.my_piece == self.go.WHITE_PIECE:
             score += KOMI
 
         return score
 
-    def do_move(self, piece, move, board):
+    def do_move(self, piece_type, move, board):
         new_board = self.go.copy_board(board)
 
         # Liberty and KO rules are already checked, and hence it is a valid move for this piece
-        new_board[move[0]][move[1]] = piece
+        new_board[move[0]][move[1]] = piece_type
 
         # Delete opponent group if required
-        for i_dash, j_dash in self.go.CHANGES:
+        for i_dash, j_dash in self.go.NEIGHBOR_INDICES:
             i_prime = move[0] + i_dash
             j_prime = move[1] + j_dash
 
             if 0 <= i_prime < self.go.game_board_size and 0 <= j_prime < self.go.game_board_size:
-                opponent_piece = self.go.get_opponent_piece(piece)
+                opponent_piece = self.go.get_opponent_piece(piece_type)
 
                 if new_board[i_prime][j_prime] == opponent_piece:
                     # Perform Depth First Search at new location
@@ -159,7 +186,7 @@ class MyPlayer:
                     while stack:
                         top_node = stack.pop()
                         visited.add(top_node)
-                        for i_dash, j_dash in self.go.CHANGES:
+                        for i_dash, j_dash in self.go.NEIGHBOR_INDICES:
                             new_i_prime = top_node[0] + i_dash
                             new_j_prime = top_node[1] + j_dash
 
@@ -310,7 +337,7 @@ class MyPlayer:
                                 valid_moves_list.get(VALID_MOVE_TWO_REGULAR).append((i, j))
                     # Check for capture
                     else:
-                        for i_dash, j_dash in self.go.CHANGES:
+                        for i_dash, j_dash in self.go.NEIGHBOR_INDICES:
                             i_prime = i + i_dash
                             j_prime = j + j_dash
                             if 0 <= i_prime < self.go.game_board_size and 0 <= j_prime < self.go.game_board_size:
@@ -341,7 +368,7 @@ class MyPlayer:
         while stack:
             top_node = stack.pop()
             visited.add(top_node)
-            for i_dash, j_dash in self.go.CHANGES:
+            for i_dash, j_dash in self.go.NEIGHBOR_INDICES:
                 i_prime = top_node[0] + i_dash
                 j_prime = top_node[1] + j_dash
                 if 0 <= i_prime < self.go.game_board_size and 0 <= j_prime < self.go.game_board_size:
@@ -361,7 +388,7 @@ class MyPlayer:
         new_game_board[i][j] = self.my_piece
         opponent_i, opponent_j = self.opponents_move()
 
-        for i_dash, j_dash in self.go.CHANGES:
+        for i_dash, j_dash in self.go.NEIGHBOR_INDICES:
             i_prime = i + i_dash
             j_prime = j + j_dash
             if i_prime == opponent_i and j_prime == opponent_j:
@@ -389,7 +416,7 @@ class MyPlayer:
             top_node = stack.pop()
             visited.add(top_node)
             game_board[top_node[0], top_node[1]] = self.go.UNOCCUPIED_SYMBOL
-            for i_dash, j_dash in self.go.CHANGES:
+            for i_dash, j_dash in self.go.NEIGHBOR_INDICES:
                 i_prime = top_node[0] + i_dash
                 j_prime = top_node[1] + j_dash
                 if 0 <= i_prime < self.go.game_board_size and 0 <= j_prime < self.go.game_board_size:
@@ -447,6 +474,14 @@ class MyPlayer:
                 last_move=valid_move,
                 is_second_pass=is_second_pass,
             )
+
+            # Defense heuristic
+            defense_score = self.defense_heuristic(game_board, valid_move[0], valid_move[1])
+
+            # Reward the move
+            reward = self.REWARD[valid_move[0]][valid_move[1]] * 0.1
+
+            max_move_value += (defense_score + reward)
 
             if max_move_value < min_move_value:
                 max_move_value = min_move_value
@@ -530,7 +565,8 @@ if __name__ == "__main__":
         GAME_BOARD_SIZE,
         INPUT_FILE_PATH,
         {"BLACK_PIECE": BLACK_PIECE, "WHITE_PIECE": WHITE_PIECE, "UNOCCUPIED_SYMBOL": UNOCCUPIED_SYMBOL},
-        CHANGES,
+        NEIGHBOR_INDICES,
+        DEFENSE_INDICES,
     )
     piece_type, previous_board, current_board = go.piece, go.previous_board, go.current_board
     step = load_game_info(previous_board, current_board)
@@ -542,6 +578,7 @@ if __name__ == "__main__":
         current_board,
         step,
         snake_check_step_threshold=SNAKE_CHECK_STEP_THRESHOLD,
+        reward=REWARD,
     )
 
     # Increase the search depth as we go ahead in the game.
