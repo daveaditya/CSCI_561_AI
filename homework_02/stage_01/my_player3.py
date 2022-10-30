@@ -91,8 +91,8 @@ class MyPlayer:
         # My Heuristics
         piece_count = (game_board == piece_type).sum()
         piece_liberties = set()
-        opponent_piece = self.go.get_opponent_piece(piece_type)
-        opponent_piece_count = (game_board == opponent_piece).sum()
+        opponent_piece_type = self.go.get_opponent_piece(piece_type)
+        opponent_piece_count = (game_board == opponent_piece_type).sum()
         opponent_liberties = set()
 
         # Give points for having piece on game board
@@ -107,7 +107,7 @@ class MyPlayer:
                         if 0 <= i_prime < self.go.game_board_size and 0 <= j_prime < self.go.game_board_size:
                             if game_board[i_prime][j_prime] == piece_type:
                                 piece_liberties.add((i, j))
-                            elif game_board[i_prime][j_prime] == opponent_piece:
+                            elif game_board[i_prime][j_prime] == opponent_piece_type:
                                 opponent_liberties.add((i, j))
 
         piece_liberties_count = len(piece_liberties)
@@ -155,9 +155,9 @@ class MyPlayer:
                     ) * snake_score
 
         # secondary heuristics
-        # secondary_score = # + (-4 * self.secondary_heuristics(game_board, piece)
+        secondary_score = 4 * (self.secondary_heuristics(game_board, opponent_piece_type) - self.secondary_heuristics(game_board, piece_type))
 
-        score = liberty_score + snake_score + piece_score + dead_score - edge_score
+        score = liberty_score + snake_score + piece_score + dead_score - edge_score + secondary_score
         if self.my_piece == self.go.WHITE_PIECE:
             score += KOMI
 
@@ -212,109 +212,48 @@ class MyPlayer:
         return new_board
 
     def secondary_heuristics(self, game_board, piece):
-        def count_m1(game_sub_board, piece):
-            if (
-                (
-                    game_sub_board[0][0] != piece
-                    and game_sub_board[0][1] != piece
-                    and game_sub_board[1][0] != piece
-                    and game_sub_board[1][1] == piece
-                )
-                or (
-                    game_sub_board[0][0] != piece
-                    and game_sub_board[0][1] != piece
-                    and game_sub_board[1][0] == piece
-                    and game_sub_board[1][1] != piece
-                )
-                or (
-                    game_sub_board[0][0] != piece
-                    and game_sub_board[0][1] == piece
-                    and game_sub_board[1][0] != piece
-                    and game_sub_board[1][1] != piece
-                )
-                or (
-                    game_sub_board[0][0] == piece
-                    and game_sub_board[0][1] != piece
-                    and game_sub_board[1][0] != piece
-                    and game_sub_board[1][1] != piece
-                )
-            ):
-                return 1
-            else:
-                return 0
+        def checker(pattern, game_sub_board):
+            for p in pattern:
+                if np.all(p == game_sub_board):
+                    return True
+            return False
 
-        def count_m2(game_sub_board, piece):
-            if (
-                game_sub_board[0][0] != piece
-                and game_sub_board[0][1] == piece
-                and game_sub_board[1][0] == piece
-                and game_sub_board[1][1] != piece
-            ) or (
-                game_sub_board[0][0] == piece
-                and game_sub_board[0][1] != piece
-                and game_sub_board[1][0] != piece
-                and game_sub_board[1][1] == piece
-            ):
-                return 1
-            else:
-                return 0
+        pattern_1 = np.array([
+            [[0, 1], [0, 0]],
+            [[0, 0], [0, 1]],
+            [[0, 1], [0, 0]],
+            [[1, 0], [0, 0]],
+        ])
 
-        def count_m3(game_sub_board, piece):
-            if (
-                (
-                    game_sub_board[0][0] != piece
-                    and game_sub_board[0][1] == piece
-                    and game_sub_board[1][0] == piece
-                    and game_sub_board[1][1] == piece
-                )
-                or (
-                    game_sub_board[0][0] == piece
-                    and game_sub_board[0][1] != piece
-                    and game_sub_board[1][0] == piece
-                    and game_sub_board[1][1] == piece
-                )
-                or (
-                    game_sub_board[0][0] != piece
-                    and game_sub_board[0][1] == piece
-                    and game_sub_board[1][0] == piece
-                    and game_sub_board[1][1] == piece
-                )
-                or (
-                    game_sub_board[0][0] == piece
-                    and game_sub_board[0][1] == piece
-                    and game_sub_board[1][0] == piece
-                    and game_sub_board[1][1] != piece
-                )
-            ):
-                return 1
-            else:
-                return 0
+        pattern_2 = np.array([
+            [[1, 0], [1, 1]],
+            [[1, 1], [1, 0]],
+            [[1, 1], [0, 1]],
+            [[0, 1], [1, 1]],
+        ])
 
-        opponent_piece = self.go.get_opponent_piece(piece)
+        pattern_3 = np.array([
+            [[1, 0], [0, 1]],
+            [[0, 1], [1, 0]],
+        ])
 
-        # Duplicate game board with extra places on each corner
-        new_game_board = np.zeros((self.go.game_board_size + 2, self.go.game_board_size + 2), dtype=int)
-        new_game_board[1:-1, 1:-1] = game_board
+        new_game_board = game_board.copy()
+        new_game_board[new_game_board != piece] = 0
+        new_game_board[new_game_board == piece] = 1
 
         m1_piece = 0
         m2_piece = 0
         m3_piece = 0
-        m1_opponent_piece = 0
-        m2_opponent_piece = 0
-        m3_opponent_piece = 0
 
         for i in range(self.go.game_board_size):
             for j in range(self.go.game_board_size):
                 new_game_sub_board = new_game_board[i : i + 2, j : j + 2]
-                m1_piece += count_m1(new_game_sub_board, piece)
-                m2_piece += count_m2(new_game_sub_board, piece)
-                m3_piece += count_m3(new_game_sub_board, piece)
-                m1_opponent_piece += count_m1(new_game_sub_board, opponent_piece)
-                m2_opponent_piece += count_m2(new_game_sub_board, opponent_piece)
-                m3_opponent_piece += count_m3(new_game_sub_board, opponent_piece)
+                m1_piece += checker(pattern_1, new_game_sub_board)
+                m2_piece += checker(pattern_2, new_game_sub_board)
+                m3_piece += checker(pattern_3, new_game_sub_board)
 
         return (
-            m1_piece - m3_piece + 2 * m2_piece - (m1_opponent_piece - m3_opponent_piece + 2 * m2_opponent_piece)
+            m1_piece - m3_piece + 2 * m2_piece
         ) / 4
 
     def find_valid_moves(self, piece_type, game_board):
