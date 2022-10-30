@@ -123,7 +123,7 @@ class MyPlayer:
                     snake_score = (MY_SNAKE_SCORE if piece == self.my_piece else OPPONENT_SNAKE_SCORE) * snake_score
 
         # secondary heuristics
-        secondary_score = # + (-4 * self.secondary_heuristics(game_board, piece))
+        # secondary_score = # + (-4 * self.secondary_heuristics(game_board, piece)
 
         score = (
             liberty_score
