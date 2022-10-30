@@ -62,13 +62,16 @@ class MyPlayer:
 
         return snake_counter
 
-    def evaluate_game_board(self, piece, game_board):
+    def evaluate_game_board(self, piece, game_board, step):
         # My Heuristics
         piece_count = (game_board == piece).sum()
         piece_liberties = set()
         opponent_piece = self.go.get_opponent_piece(piece)
         opponent_piece_count = (game_board == opponent_piece).sum()
         opponent_liberties = set()
+
+        # Give points for having piece on game board
+        piece_score = (2 * (piece_count - opponent_piece_count))
 
         for i in range(0, self.go.game_board_size):
             for j in range(0, self.go.game_board_size):
@@ -82,39 +85,51 @@ class MyPlayer:
                             elif game_board[i_prime][j_prime] == opponent_piece:
                                 opponent_liberties.add((i, j))
 
+        piece_liberties_count = len(piece_liberties)
+        opponent_liberties_count = len(opponent_liberties)
+
+        # Liberty based heuristics#1
+        # Need to maximize the number of liberties between this piece and the opponent piece
+        liberty_score = (
+            (piece_liberties_count - opponent_liberties_count)
+            if piece == self.my_piece
+            else (opponent_liberties_count - piece_liberties_count)
+        )
+
+        # Liberty based heuristics#1
+        # liberty_score = min(max((piece_liberties_count - opponent_liberties_count), -8), 8)
+
         # Calculate pieces on edges
         piece_edge_count = np.sum(
             [
-                # First row / Top
-                (game_board[0, :] == piece),
-                # Last Column / Right
-                (game_board[:, self.go.game_board_size - 1] == piece),
-                # Last row / Bottom
-                (game_board[self.go.game_board_size - 1, :] == piece),
-                # First column / Left
-                (game_board[:, 0] == piece),
+                (game_board[0, :] == piece), # First row / Top
+                (game_board[:, self.go.game_board_size - 1] == piece), # Last Column / Right
+                (game_board[self.go.game_board_size - 1, :] == piece), # Last row / Bottom
+                (game_board[:, 0] == piece), # First column / Left
             ]
         )
-
         middle_unoccupied_count = (game_board[1:-1, 1:-1] == self.go.UNOCCUPIED_SYMBOL).sum()
 
+        # Scoring for middle and edge of the board
+        edge_score = (9 * piece_edge_count * (middle_unoccupied_count / 9))
+
+        # Check for the no liberty move
         snake_score = 0
         # Check for snake only if more than 8 moves have been played
-        if self.step > self.snake_check_step_threshold:
+        if step > self.snake_check_step_threshold:
             # Check if there are 10 or more pieces on board
             if (game_board == self.go.BLACK_PIECE).sum() >= 10 or (game_board == self.go.WHITE_PIECE).sum() >= 10:
                 if self.has_snake_move(piece, game_board):
                     snake_score = (MY_SNAKE_SCORE if piece == self.my_piece else OPPONENT_SNAKE_SCORE) * snake_score
 
+        # secondary heuristics
+        secondary_score = # + (-4 * self.secondary_heuristics(game_board, piece))
+
         score = (
-            # Need to maximize the number of liberties between this piece and the opponent piece
-            min(max((len(piece_liberties) - len(opponent_liberties)), -8), 8)
-            # + (-4 * self.secondary_heuristics(game_board, piece))
+            liberty_score
             + snake_score
-            # Give points for having piece on game board
-            + (2 * (piece_count - opponent_piece_count))
-            # Scoring for middle and edge of the board
-            - (9 * piece_edge_count * (middle_unoccupied_count / 9))
+            + piece_score
+            - edge_score
         )
         if self.my_piece == self.go.WHITE_PIECE:
             score += KOMI
@@ -399,9 +414,9 @@ class MyPlayer:
         is_second_pass,
     ):
         if is_second_pass:
-            return self.evaluate_game_board(piece, game_board)
+            return self.evaluate_game_board(piece, game_board, step)
         if search_depth == current_depth or step + current_depth == self.go.max_move:
-            return self.evaluate_game_board(piece, game_board)
+            return self.evaluate_game_board(piece, game_board, step)
 
         is_second_pass = False
         max_move_value = -np.inf
@@ -464,9 +479,9 @@ class MyPlayer:
         is_second_pass,
     ):
         if search_depth == current_depth:
-            return self.evaluate_game_board(piece, game_board)
+            return self.evaluate_game_board(piece, game_board, step)
         if step + current_depth == self.go.max_move or is_second_pass:
-            return self.evaluate_game_board(self.my_piece, game_board)
+            return self.evaluate_game_board(self.my_piece, game_board, step)
 
         is_second_pass = False
         min_move_value = np.inf
