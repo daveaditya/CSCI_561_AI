@@ -139,24 +139,24 @@ class MyPlayer:
         middle_unoccupied_count = (game_board[1:-1, 1:-1] == self.go.UNOCCUPIED_SYMBOL).sum()
 
         # Scoring for middle and edge of the board
-        edge_score = 9 * piece_edge_count * (middle_unoccupied_count / 9)
+        edge_score = piece_edge_count * middle_unoccupied_count
 
         # Dead count for opponent
         dead_score = 0
-        if piece_type == self.my_piece:
-            dead_score = 10 * self.count_dead(piece_type, game_board)
+        # if piece_type == self.my_piece:
+        #     dead_score = 1e-5 * self.count_dead(piece_type, game_board)
 
         # Check for the no liberty move
         snake_score = 0
         # Check for snake only if more than 8 moves have been played
-        if step > self.snake_check_step_threshold:
-            # Check if there are 10 or more pieces on board
-            if (game_board == self.go.BLACK_PIECE).sum() >= 10 or (game_board == self.go.WHITE_PIECE).sum() >= 10:
-                snake_move_count = self.has_snake_move(piece_type, game_board)
-                if snake_move_count:
-                    snake_score = (
-                        MY_SNAKE_SCORE if piece_type == self.my_piece else OPPONENT_SNAKE_SCORE
-                    ) * snake_move_count
+        # if step > self.snake_check_step_threshold:
+        #     # Check if there are 10 or more pieces on board
+        #     if (game_board == self.go.BLACK_PIECE).sum() >= 10 or (game_board == self.go.WHITE_PIECE).sum() >= 10:
+        #         snake_move_count = self.has_snake_move(piece_type, game_board)
+        #         if snake_move_count:
+        #             snake_score = 1e-5 * (
+        #                 MY_SNAKE_SCORE if piece_type == self.my_piece else OPPONENT_SNAKE_SCORE
+        #             ) * snake_move_count
 
         # secondary heuristics
         secondary_score = 0
@@ -165,7 +165,7 @@ class MyPlayer:
                 game_board, piece_type
             )
 
-        score = liberty_score + snake_score + piece_score + dead_score + secondary_score - edge_score
+        score = liberty_score  + piece_score + secondary_score - edge_score
         if self.my_piece == self.go.WHITE_PIECE:
             score += KOMI
 
