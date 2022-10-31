@@ -14,7 +14,15 @@ random.seed(42)
 #############################################################
 class MyPlayer:
     def __init__(
-        self, go: GO, piece: int, previous_board, current_board, step: int, snake_check_step_threshold: int, secondary_heuristics_threshold: int, reward
+        self,
+        go: GO,
+        piece: int,
+        previous_board,
+        current_board,
+        step: int,
+        snake_check_step_threshold: int,
+        secondary_heuristics_threshold: int,
+        reward,
     ):
         self.type = "minimax_with_pruning_player"
         self.go: GO = go
@@ -153,7 +161,9 @@ class MyPlayer:
         # secondary heuristics
         secondary_score = 0
         if step > self.secondary_heuristics_threshold:
-            secondary_score = -4 * (self.secondary_heuristics(game_board, piece_type) - self.secondary_heuristics(game_board, opponent_piece_type))
+            secondary_score = self.secondary_heuristics(game_board, opponent_piece_type) - self.secondary_heuristics(
+                game_board, piece_type
+            )
 
         score = liberty_score + snake_score + piece_score + dead_score + secondary_score - edge_score
         if self.my_piece == self.go.WHITE_PIECE:
@@ -294,26 +304,16 @@ class MyPlayer:
         new_game_board = np.zeros((self.go.game_board_size + 2, self.go.game_board_size + 2), dtype=int)
         new_game_board[1:-1, 1:-1] = game_board
 
-        single_piece = 0
-        group_3_piece = 0
-        diagonal_piece = 0
-        # single_opponent_piece = 0
-        # group_3_opponent_piece = 0
-        # diagonal_opponent_piece = 0
+        single_count, group_3_count, diagonal_count = 0, 0, 0
 
         for i in range(self.go.game_board_size):
             for j in range(self.go.game_board_size):
                 new_game_sub_board = new_game_board[i : i + 2, j : j + 2]
-                single_piece += count_single(new_game_sub_board, piece)
-                group_3_piece += count_group_3(new_game_sub_board, piece)
-                diagonal_piece += count_diagonal(new_game_sub_board, piece)
-                # single_opponent_piece += count_single(new_game_sub_board, opponent_piece)
-                # group_3_opponent_piece += count_group_3(new_game_sub_board, opponent_piece)
-                # diagonal_opponent_piece += count_diagonal(new_game_sub_board, opponent_piece)
+                single_count += count_single(new_game_sub_board, piece)
+                group_3_count += count_group_3(new_game_sub_board, piece)
+                diagonal_count += count_diagonal(new_game_sub_board, piece)
 
-        return (
-            single_piece - diagonal_piece + 2 * group_3_piece 
-        ) / 4 # - (single_opponent_piece - diagonal_opponent_piece + 2 * group_3_opponent_piece)
+        return (single_count - diagonal_count + 2 * group_3_count)
 
     def find_valid_moves(self, piece_type, game_board):
         valid_moves_list = {
