@@ -298,8 +298,6 @@ class MyPlayer:
             else:
                 return 0
 
-        # opponent_piece = self.go.get_opponent_piece(piece)
-
         # Duplicate game board with extra places on each corner
         new_game_board = np.zeros((self.go.game_board_size + 2, self.go.game_board_size + 2), dtype=int)
         new_game_board[1:-1, 1:-1] = game_board
@@ -472,14 +470,6 @@ class MyPlayer:
                 last_move=valid_move,
                 is_second_pass=is_second_pass,
             )
-
-            # Defense heuristic
-            # defense_score = self.defense_heuristic(game_board, valid_move[0], valid_move[1])
-
-            # Reward the move
-            # reward = self.REWARD[valid_move[0]][valid_move[1]] * 0.1
-
-            # max_move_value += defense_score
 
             if max_move_value < min_move_value:
                 max_move_value = min_move_value
