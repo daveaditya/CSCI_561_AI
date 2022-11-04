@@ -1,0 +1,44 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Spiral",
+            "type": "python",
+            "request": "launch",
+            "program": "NeuralNetwork3.py",
+            "args": ["./data/spiral_train_data.csv", "./data/spiral_train_label.csv", "./data/spiral_test_data.csv", "--test_label_file", "./data/spiral_test_label.csv"],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Circle",
+            "type": "python",
+            "request": "launch",
+            "program": "NeuralNetwork3.py",
+            "args": ["./data/circle_train_data.csv", "./data/circle_train_label.csv", "./data/circle_test_data.csv", "--test_label_file", "./data/circle_test_label.csv"],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "XOR",
+            "type": "python",
+            "request": "launch",
+            "program": "NeuralNetwork3.py",
+            "args": ["./data/xor_train_data.csv", "./data/xor_train_label.csv", "./data/xor_test_data.csv", "--test_label_file", "./data/xor_test_label.csv"],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Gaussian",
+            "type": "python",
+            "request": "launch",
+            "program": "NeuralNetwork3.py",
+            "args": ["./data/gaussian_train_data.csv", "./data/gaussian_train_label.csv", "./data/gaussian_test_data.csv", "--test_label_file", "./data/gaussian_test_label.csv"],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        }
+    ]
+}
