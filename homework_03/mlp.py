@@ -81,15 +81,6 @@ class SoftmaxCrossEntropy:
         return backward_output
 
 
-def add_momentum(model):
-    momentum = dict()
-    for module_name, module in model.items():
-        if hasattr(module, "params"):
-            for key, _ in module.params.items():
-                momentum[module_name + "_" + key] = np.zeros(shape=module.gradient[key].shape)
-    return momentum
-
-
 def predict_label(f):
     if f.shape[1] == 1:
         return (f > 0).astype(float)
@@ -112,22 +103,16 @@ class DataBatchMaker:
         return X_batch, y_batch
 
 
-def gradient_descent(model, momentum, alpha, learning_rate):
+def gradient_descent(model, learning_rate):
     for module_name, module in model.items():
         if hasattr(module, "params"):
             for key, _ in module.params.items():
                 g = module.gradient[key]
-                if alpha <= 0.0:
-                    module.params[key] = module.params[key] - np.multiply(learning_rate, g)
-                else:
-                    momentum[f"{module_name}_{key}"] = np.multiply(
-                        alpha, momentum[f"{module_name}_{key}"]
-                    ) - np.multiply(learning_rate, g)
-                    module.params[key] = module.params[key] + momentum[f"{module_name}_{key}"]
+                module.params[key] = module.params[key] - np.multiply(learning_rate, g)
     return model
 
 
-def train(X, y, val_ratio, model, n_epoch, mini_batch_size, alpha, learning_rate, step, rng):
+def train(X, y, val_ratio, model, n_epoch, mini_batch_size, learning_rate, step, rng):
     X_train, y_train, X_val, y_val = train_test_split(X, y, test_ratio=val_ratio, rng=rng)
 
     n_train, _ = X_train.shape
@@ -135,12 +120,6 @@ def train(X, y, val_ratio, model, n_epoch, mini_batch_size, alpha, learning_rate
 
     train_set = DataBatchMaker(X_train, y_train)
     val_set = DataBatchMaker(X_val, y_val)
-
-    # Momentum
-    if alpha > 0.0:
-        momentum = add_momentum(model)
-    else:
-        momentum = None
 
     best_val_loss = sys.maxsize
     best_model = None
@@ -189,7 +168,7 @@ def train(X, y, val_ratio, model, n_epoch, mini_batch_size, alpha, learning_rate
             _ = model["FC_1"].backward(x_train, grad_a1)
 
             # Update gradient
-            model = gradient_descent(model, momentum, alpha, learning_rate)
+            model = gradient_descent(model, learning_rate)
 
         # Train Accuracy
         for i in range(int(np.floor(n_train / mini_batch_size))):
