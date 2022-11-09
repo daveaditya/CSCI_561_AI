@@ -12,6 +12,8 @@ RANDOM_SEED = 42
 
 np.random.seed(seed=RANDOM_SEED)
 rng = np.random.default_rng(seed=RANDOM_SEED)
+
+
 ################################################################################################
 ### Main Program
 ################################################################################################
@@ -54,29 +56,30 @@ def main(train_data_file, train_label_file, test_data_file, test_label_file=None
     model["RELU_2"] = ReLU()
     model["FC_3"] = LinearLayer(in_dim=7, out_dim=7, rng=rng)
     model["RELU_3"] = ReLU()
-    model["FC_4"] = LinearLayer(in_dim=7, out_dim=2, rng=rng)
+    model["DO_1"] = Dropout(0.15, rng=rng)
+    model["FC_4"] = LinearLayer(in_dim=7, out_dim=7, rng=rng)
     model["LOSS"] = SoftmaxCrossEntropy()
 
     # Train
-    model = train(
+    best_epoch, best_model = train(
         X_new,
         y,
         val_ratio=0.2,
         model=model,
-        n_epoch=100,
+        n_epoch=200,
         mini_batch_size=8,
-        alpha=0.01,
-        learning_rate=0.03,
+        alpha=0.0,
+        learning_rate=0.04,
         step=50,
         rng=rng,
     )
 
     # Predict
-    y_pred = predict(model, X_test_new)
+    y_pred = predict(best_model, X_test_new)
 
     if is_testing:
-        from sklearn.metrics import classification_report
-        print(classification_report(y_test, y_pred))
+        test_acc = np.sum(y_pred == y_test) / y_test.shape[0]
+        print(f"Best Epoch: {best_epoch + 1}, Test Accuracy: {test_acc}")
 
     # Write Predictions
     write_predictions(PREDICTIONS_FILE, y_pred)

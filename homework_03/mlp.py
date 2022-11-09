@@ -1,3 +1,5 @@
+from copy import deepcopy
+import sys
 import numpy as np
 
 from utils import train_test_split
@@ -17,14 +19,12 @@ class LinearLayer:
         self.gradient["b"] = np.zeros(shape=(1, out_dim))
 
     def forward(self, X):
-        forward_out = np.dot(X, self.params["W"]) + self.params["b"]
-        return forward_out
+        return np.dot(X, self.params["W"]) + self.params["b"]
 
     def backward(self, X, grad):
         self.gradient["W"] = np.matmul(X.T, grad)
         self.gradient["b"] = np.array([np.sum(grad, axis=0)])
-        backward_out = np.matmul(grad, self.params["W"].T)
-        return backward_out
+        return np.matmul(grad, self.params["W"].T)
 
 
 class ReLU:
@@ -32,13 +32,27 @@ class ReLU:
         self.mask = None
 
     def forward(self, X):
-        forward_out = np.maximum(0, X)
-        return forward_out
+        return np.maximum(0, X)
 
     def backward(self, X, grad):
-        new_X = np.where(X <= 0, 0, 1)
-        backward_out = np.multiply(grad, new_X)
-        return backward_out
+        return np.multiply(grad, np.where(X <= 0, 0, 1))
+
+
+class Dropout:
+    def __init__(self, r, rng) -> None:
+        self.r = r
+        self.rng = rng
+        self.mask = None
+
+    def forward(self, X, is_train):
+        if is_train:
+            self.mask = (self.rng.uniform(0.0, 1.0, X.shape) >= self.r).astype(float) * (1.0 / (1.0 - self.r))
+        else:
+            self.mask = np.ones(X.shape)
+        return np.multiply(X, self.mask)
+
+    def backward(self, X, grad):
+        return np.multiply(self.mask, grad)
 
 
 class SoftmaxCrossEntropy:
@@ -120,7 +134,7 @@ def train(X, y, val_ratio, model, n_epoch, mini_batch_size, alpha, learning_rate
     n_val, _ = X_val.shape
 
     train_set = DataBatchMaker(X_train, y_train)
-    test_set = DataBatchMaker(X_val, y_val)
+    val_set = DataBatchMaker(X_val, y_val)
 
     # Momentum
     if alpha > 0.0:
@@ -128,14 +142,12 @@ def train(X, y, val_ratio, model, n_epoch, mini_batch_size, alpha, learning_rate
     else:
         momentum = None
 
-    train_acc_record = []
-    val_acc_record = []
-
-    train_loss_record = []
-    val_loss_record = []
+    best_val_loss = sys.maxsize
+    best_model = None
+    best_epoch = 0
 
     for n in range(n_epoch):
-        print("At epoch " + str(n + 1))
+
         if (n % step == 0) and (n != 0):
             learning_rate = learning_rate * 0.1
 
@@ -152,81 +164,66 @@ def train(X, y, val_ratio, model, n_epoch, mini_batch_size, alpha, learning_rate
         for i in range(int(np.floor(n_train / mini_batch_size))):
 
             # get a mini-batch of data
-            x, y = train_set.get(idx_order[i * mini_batch_size : (i + 1) * mini_batch_size])
+            x_train, y_train = train_set.get(idx_order[i * mini_batch_size : (i + 1) * mini_batch_size])
 
             # Forward Pass
-            a1 = model["FC_1"].forward(x)
+            a1 = model["FC_1"].forward(x_train)
             h1 = model["RELU_1"].forward(a1)
             a2 = model["FC_2"].forward(h1)
             h2 = model["RELU_2"].forward(a2)
             a3 = model["FC_3"].forward(h2)
             h3 = model["RELU_3"].forward(a3)
-            a4 = model["FC_4"].forward(h3)
-            loss = model["LOSS"].forward(a4, y)
+            d1 = model["DO_1"].forward(h3, is_train=True)
+            a4 = model["FC_4"].forward(d1)
+            loss = model["LOSS"].forward(a4, y_train)
 
             # Backward Pass
-            grad_a4 = model["LOSS"].backward(a4, y)
-            grad_h3 = model["FC_4"].backward(h3, grad_a4)
+            grad_a4 = model["LOSS"].backward(a4, y_train)
+            grad_d1 = model["FC_4"].backward(d1, grad_a4)
+            grad_h3 = model["DO_1"].backward(h3, grad_d1)
             grad_a3 = model["RELU_3"].backward(a3, grad_h3)
             grad_h2 = model["FC_3"].backward(h2, grad_a3)
             grad_a2 = model["RELU_2"].backward(a2, grad_h2)
             grad_h1 = model["FC_2"].backward(h1, grad_a2)
             grad_a1 = model["RELU_1"].backward(a1, grad_h1)
-            grad_x = model["FC_1"].backward(x, grad_a1)
+            _ = model["FC_1"].backward(x_train, grad_a1)
 
             # Update gradient
             model = gradient_descent(model, momentum, alpha, learning_rate)
 
-        ### Computing training accuracy and obj ###
+        # Train Accuracy
         for i in range(int(np.floor(n_train / mini_batch_size))):
 
-            x, y = train_set.get(np.arange(i * mini_batch_size, (i + 1) * mini_batch_size))
+            x_train, y_train = train_set.get(np.arange(i * mini_batch_size, (i + 1) * mini_batch_size))
 
-            ### forward pass ###
-            a1 = model["FC_1"].forward(x)
-            h1 = model["RELU_1"].forward(a1)
-            a2 = model["FC_2"].forward(h1)
-            h2 = model["RELU_2"].forward(a2)
-            a3 = model["FC_3"].forward(h2)
-            h3 = model["RELU_3"].forward(a3)
-            a4 = model["FC_4"].forward(h3)
-            loss = model["LOSS"].forward(a4, y)
+            loss, preds = calculate_loss(model, x_train, y_train)
             train_loss += loss
-            train_acc += np.sum(predict_label(a2) == y)
-            train_count += len(y)
+            train_acc += np.sum(preds == y_train)
+            train_count += len(y_train)
 
         train_acc = train_acc / train_count
-        train_acc_record.append(train_acc)
-        train_loss_record.append(train_loss)
 
-        print("Training loss at epoch " + str(n + 1) + " is " + str(train_loss))
-        print("Training accuracy at epoch " + str(n + 1) + " is " + str(train_acc))
-
-        ### Computing validation accuracy ###
+        # Validation Accuracy
         for i in range(int(np.floor(n_val / mini_batch_size))):
-
-            x, y = test_set.get(np.arange(i * mini_batch_size, (i + 1) * mini_batch_size))
-
-            ### forward pass ###
-            a1 = model["FC_1"].forward(x)
-            h1 = model["RELU_1"].forward(a1)
-            a2 = model["FC_2"].forward(h1)
-            h2 = model["RELU_2"].forward(a2)
-            a3 = model["FC_3"].forward(h2)
-            h3 = model["RELU_3"].forward(a3)
-            a4 = model["FC_4"].forward(h3)
-            loss = model["LOSS"].forward(a4, y)
+            x_val, y_val = val_set.get(np.arange(i * mini_batch_size, (i + 1) * mini_batch_size))
+            loss, preds = calculate_loss(model, x_val, y_val)
             val_loss += loss
-            val_acc += np.sum(predict_label(a4) == y)
-            val_count += len(y)
+            val_acc += np.sum(preds == y_val)
+            val_count += len(y_val)
 
-        val_loss_record.append(val_loss)
         val_acc = val_acc / val_count
-        val_acc_record.append(val_acc)
 
-        print("Validation accuracy at epoch " + str(n + 1) + " is " + str(val_acc))
+        print(
+            f"Epoch: {n + 1}, Training Loss: {train_loss}, Training Accuracy: {train_acc}, Validation Loss: {val_loss}, Validation Accuracy: {val_acc}"
+        )
 
-    return model
+        # Store best model
+        if val_loss < best_val_loss:
+            best_epoch = n
+            best_model = deepcopy(model)
+            best_val_loss = val_loss
+
+    return best_epoch, best_model
 
 
 def predict(model, X):
@@ -236,6 +233,21 @@ def predict(model, X):
     h2 = model["RELU_2"].forward(a2)
     a3 = model["FC_3"].forward(h2)
     h3 = model["RELU_3"].forward(a3)
-    a4 = model["FC_4"].forward(h3)
-    labels = predict_label(a4)
+    d1 = model["DO_1"].forward(h3, is_train=False)
+    a4 = model["FC_4"].forward(d1)
+    labels = np.squeeze(predict_label(a4))
     return labels
+
+
+def calculate_loss(model, x, y):
+    a1 = model["FC_1"].forward(x)
+    h1 = model["RELU_1"].forward(a1)
+    a2 = model["FC_2"].forward(h1)
+    h2 = model["RELU_2"].forward(a2)
+    a3 = model["FC_3"].forward(h2)
+    h3 = model["RELU_3"].forward(a3)
+    d1 = model["DO_1"].forward(h3, is_train=False)
+    a4 = model["FC_4"].forward(d1)
+    loss = model["LOSS"].forward(a4, y)
+
+    return loss, predict_label(a4)
