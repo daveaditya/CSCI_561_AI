@@ -1,5 +1,6 @@
-from copy import deepcopy
 import sys
+from copy import deepcopy
+
 import numpy as np
 
 from utils import train_test_split
@@ -57,28 +58,26 @@ class Dropout:
 
 class SoftmaxCrossEntropy:
     def __init__(self) -> None:
-        self.expand_Y = None
+        self.Y = None
         self.calib_logit = None
         self.sum_exp_calib_logit = None
         self.prob = None
 
     def forward(self, X, Y):
-        self.expand_Y = np.zeros(X.shape).reshape(-1)
-        self.expand_Y[Y.astype(int).reshape(-1) + np.arange(X.shape[0]) * X.shape[1]] = 1.0
-        self.expand_Y = self.expand_Y.reshape(X.shape)
+        self.Y = np.zeros(X.shape).reshape(-1)
+        self.Y[Y.astype(int).reshape(-1) + np.arange(X.shape[0]) * X.shape[1]] = 1.0
+        self.Y = self.Y.reshape(X.shape)
 
         self.calib_logit = X - np.amax(X, axis=1, keepdims=True)
         self.sum_exp_calib_logit = np.sum(np.exp(self.calib_logit), axis=1, keepdims=True)
         self.prob = np.exp(self.calib_logit) / self.sum_exp_calib_logit
 
-        forward_out = (
-            -np.sum(np.multiply(self.expand_Y, self.calib_logit - np.log(self.sum_exp_calib_logit))) / X.shape[0]
+        return (
+            -np.sum(np.multiply(self.Y, self.calib_logit - np.log(self.sum_exp_calib_logit))) / X.shape[0]
         )
-        return forward_out
 
     def backward(self, X, Y):
-        backward_output = -(self.expand_Y - self.prob) / X.shape[0]
-        return backward_output
+        return -(self.Y - self.prob) / X.shape[0]
 
 
 def predict_label(f):
@@ -88,7 +87,7 @@ def predict_label(f):
         return np.argmax(f, axis=1).astype(float).reshape((f.shape[0], -1))
 
 
-class DataBatchMaker:
+class DatasetBatch:
     def __init__(self, X, Y):
         self.X = X
         self.y = Y
@@ -104,7 +103,7 @@ class DataBatchMaker:
 
 
 def gradient_descent(model, learning_rate):
-    for module_name, module in model.items():
+    for _, module in model.items():
         if hasattr(module, "params"):
             for key, _ in module.params.items():
                 g = module.gradient[key]
@@ -118,8 +117,8 @@ def train(X, y, val_ratio, model, n_epoch, mini_batch_size, learning_rate, step,
     n_train, _ = X_train.shape
     n_val, _ = X_val.shape
 
-    train_set = DataBatchMaker(X_train, y_train)
-    val_set = DataBatchMaker(X_val, y_val)
+    train_set = DatasetBatch(X_train, y_train)
+    val_set = DatasetBatch(X_val, y_val)
 
     best_val_loss = sys.maxsize
     best_model = None
